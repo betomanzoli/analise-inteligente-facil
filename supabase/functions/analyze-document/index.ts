@@ -104,7 +104,7 @@ serve(async (req) => {
         }
 
         // Call n8n webhook (placeholder - you'll need to provide the actual webhook URL)
-        const n8nWebhookUrl = 'YOUR_N8N_WEBHOOK_URL_HERE' // Replace with actual webhook URL
+        const makeWebhookUrl = 'https://hook.us1.make.com/a2wf9rkk9gmwfmfv4jbhoak75b501igd' // Replace with actual webhook URL
         
         const webhookPayload = {
           analysisId: analysisId,
