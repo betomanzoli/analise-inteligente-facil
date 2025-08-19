@@ -6,6 +6,8 @@ import { useToast } from '@/hooks/use-toast';
 interface UploadProgress {
   percentage: number;
   stage: string;
+  currentStep: number;
+  totalSteps: number;
 }
 
 interface AnalysisRecord {
@@ -25,6 +27,7 @@ export const useFileUpload = () => {
   const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [analysisId, setAnalysisId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
 
   const uploadFile = async (file: File, instruction: string): Promise<string | null> => {
@@ -38,11 +41,30 @@ export const useFileUpload = () => {
     }
 
     setIsUploading(true);
-    setUploadProgress({ percentage: 0, stage: "Preparando upload..." });
+    setError(null);
+    setUploadProgress({ 
+      percentage: 0, 
+      stage: "Iniciando processo...", 
+      currentStep: 1, 
+      totalSteps: 6 
+    });
 
     try {
-      // Step 1: Get signed upload URL
-      setUploadProgress({ percentage: 10, stage: "Obtendo URL de upload..." });
+      // Step 1: Validate file
+      setUploadProgress({ 
+        percentage: 10, 
+        stage: "Validando arquivo...", 
+        currentStep: 1, 
+        totalSteps: 6 
+      });
+
+      // Step 2: Get signed upload URL
+      setUploadProgress({ 
+        percentage: 20, 
+        stage: "Preparando upload seguro...", 
+        currentStep: 2, 
+        totalSteps: 6 
+      });
       
       const { data: uploadData, error: uploadError } = await supabase.functions.invoke('analyze-document', {
         body: {
@@ -60,8 +82,13 @@ export const useFileUpload = () => {
       const { uploadUrl, analysisId: newAnalysisId } = uploadData;
       setAnalysisId(newAnalysisId);
 
-      // Step 2: Upload file to Supabase Storage
-      setUploadProgress({ percentage: 30, stage: "Fazendo upload do arquivo..." });
+      // Step 3: Upload file to Supabase Storage
+      setUploadProgress({ 
+        percentage: 40, 
+        stage: "Enviando arquivo para a nuvem...", 
+        currentStep: 3, 
+        totalSteps: 6 
+      });
 
       const uploadResponse = await fetch(uploadUrl, {
         method: 'PUT',
@@ -73,12 +100,17 @@ export const useFileUpload = () => {
       });
 
       if (!uploadResponse.ok) {
-        throw new Error('Falha no upload do arquivo');
+        throw new Error('Falha no upload do arquivo para o storage');
       }
 
-      setUploadProgress({ percentage: 70, stage: "Upload concluído, iniciando análise..." });
+      // Step 4: Trigger analysis processing
+      setUploadProgress({ 
+        percentage: 60, 
+        stage: "Conectando com sistema de análise...", 
+        currentStep: 4, 
+        totalSteps: 6 
+      });
 
-      // Step 3: Trigger analysis processing
       const { error: processError } = await supabase.functions.invoke('analyze-document', {
         body: {
           action: 'process',
@@ -88,10 +120,24 @@ export const useFileUpload = () => {
       });
 
       if (processError) {
-        throw new Error('Falha ao iniciar análise');
+        throw new Error('Falha ao iniciar processo de análise');
       }
 
-      setUploadProgress({ percentage: 100, stage: "Análise iniciada com sucesso!" });
+      // Step 5: Analysis started
+      setUploadProgress({ 
+        percentage: 80, 
+        stage: "Análise iniciada - processamento em andamento...", 
+        currentStep: 5, 
+        totalSteps: 6 
+      });
+
+      // Step 6: Complete
+      setUploadProgress({ 
+        percentage: 100, 
+        stage: "Upload concluído! Análise em processamento...", 
+        currentStep: 6, 
+        totalSteps: 6 
+      });
 
       toast({
         title: "Upload concluído!",
@@ -102,16 +148,24 @@ export const useFileUpload = () => {
 
     } catch (error) {
       console.error('Upload error:', error);
+      const errorMessage = error instanceof Error ? error.message : "Erro desconhecido durante o upload";
+      setError(errorMessage);
+      
       toast({
         title: "Erro no upload",
-        description: error instanceof Error ? error.message : "Erro desconhecido",
+        description: errorMessage,
         variant: "destructive",
       });
       return null;
     } finally {
       setIsUploading(false);
-      setTimeout(() => setUploadProgress(null), 2000);
+      setTimeout(() => setUploadProgress(null), 3000);
     }
+  };
+
+  const retryUpload = (file: File, instruction: string) => {
+    setError(null);
+    return uploadFile(file, instruction);
   };
 
   const checkAnalysisStatus = async (id: string): Promise<AnalysisRecord | null> => {
@@ -124,7 +178,7 @@ export const useFileUpload = () => {
       });
 
       if (error || !data?.success) {
-        throw new Error(data?.error || 'Falha ao verificar status');
+        throw new Error(data?.error || 'Falha ao verificar status da análise');
       }
 
       return data.analysis;
@@ -136,9 +190,11 @@ export const useFileUpload = () => {
 
   return {
     uploadFile,
+    retryUpload,
     checkAnalysisStatus,
     uploadProgress,
     isUploading,
-    analysisId
+    analysisId,
+    error
   };
 };

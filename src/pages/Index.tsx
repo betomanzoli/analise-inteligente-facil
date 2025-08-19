@@ -3,12 +3,29 @@ import React, { useState } from 'react';
 import { Header } from '@/components/Header';
 import { EnhancedAnalysisForm } from '@/components/EnhancedAnalysisForm';
 import { EnhancedAnalysisResult } from '@/components/EnhancedAnalysisResult';
+import { useFileUpload } from '@/hooks/useFileUpload';
 
 const Index = () => {
   const [currentAnalysisId, setCurrentAnalysisId] = useState<string | null>(null);
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploadInstruction, setUploadInstruction] = useState<string>('');
+  
+  const { uploadProgress, error, isUploading, retryUpload } = useFileUpload();
 
-  const handleAnalysisStart = (analysisId: string) => {
+  const handleAnalysisStart = (analysisId: string, file?: File, instruction?: string) => {
     setCurrentAnalysisId(analysisId);
+    if (file) setUploadFile(file);
+    if (instruction) setUploadInstruction(instruction);
+  };
+
+  const handleRetryUpload = () => {
+    if (uploadFile && uploadInstruction) {
+      retryUpload(uploadFile, uploadInstruction).then((analysisId) => {
+        if (analysisId) {
+          setCurrentAnalysisId(analysisId);
+        }
+      });
+    }
   };
 
   return (
@@ -26,6 +43,10 @@ const Index = () => {
           <section>
             <EnhancedAnalysisResult
               analysisId={currentAnalysisId}
+              uploadProgress={uploadProgress}
+              uploadError={error}
+              onRetryUpload={handleRetryUpload}
+              isRetrying={isUploading}
             />
           </section>
         </div>

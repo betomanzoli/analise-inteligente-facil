@@ -3,6 +3,9 @@ import React, { useEffect, useState } from 'react';
 import { FileText, Download, Copy, Clock, CheckCircle, AlertCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useFileUpload } from '@/hooks/useFileUpload';
+import { DetailedProgressIndicator } from './DetailedProgressIndicator';
+import { ErrorHandler } from './ErrorHandler';
+import { FormattedResult } from './FormattedResult';
 
 interface AnalysisRecord {
   id: string;
@@ -16,11 +19,24 @@ interface AnalysisRecord {
 interface EnhancedAnalysisResultProps {
   analysisId: string | null;
   fileName?: string;
+  uploadProgress?: {
+    percentage: number;
+    stage: string;
+    currentStep: number;
+    totalSteps: number;
+  } | null;
+  uploadError?: string | null;
+  onRetryUpload?: () => void;
+  isRetrying?: boolean;
 }
 
 export const EnhancedAnalysisResult: React.FC<EnhancedAnalysisResultProps> = ({
   analysisId,
-  fileName
+  fileName,
+  uploadProgress,
+  uploadError,
+  onRetryUpload,
+  isRetrying
 }) => {
   const [analysis, setAnalysis] = useState<AnalysisRecord | null>(null);
   const [isPolling, setIsPolling] = useState(false);
@@ -116,7 +132,7 @@ export const EnhancedAnalysisResult: React.FC<EnhancedAnalysisResultProps> = ({
       case 'pending':
         return 'Aguardando processamento...';
       case 'processing':
-        return 'Analisando documento...';
+        return 'Analisando documento com IA...';
       case 'completed':
         return 'Análise concluída';
       case 'error':
@@ -125,6 +141,33 @@ export const EnhancedAnalysisResult: React.FC<EnhancedAnalysisResultProps> = ({
         return 'Status desconhecido';
     }
   };
+
+  // Show upload progress if uploading
+  if (uploadProgress) {
+    return (
+      <div className="space-y-4">
+        <h2 className="text-section-title flex items-center space-x-2">
+          <FileText className="h-6 w-6" />
+          <span>Upload em Progresso</span>
+        </h2>
+        
+        <div className="result-card">
+          <DetailedProgressIndicator 
+            progress={uploadProgress}
+            error={uploadError}
+          />
+        </div>
+        
+        {uploadError && onRetryUpload && (
+          <ErrorHandler
+            error={uploadError}
+            onRetry={onRetryUpload}
+            isRetrying={isRetrying}
+          />
+        )}
+      </div>
+    );
+  }
 
   if (!analysisId) {
     return null;
@@ -169,29 +212,23 @@ export const EnhancedAnalysisResult: React.FC<EnhancedAnalysisResultProps> = ({
                 <p className="text-sm text-subtle">
                   Arquivo: {analysis.file_name}
                 </p>
+                {(analysis.status === 'processing' || analysis.status === 'pending') && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Este processo pode levar alguns minutos dependendo do tamanho do documento
+                  </p>
+                )}
               </div>
             </div>
 
             {/* Content */}
             {analysis.status === 'completed' && analysis.result && (
-              <div className="prose prose-gray max-w-none animate-fade-in">
-                <pre className="whitespace-pre-wrap text-sm leading-relaxed font-sans">
-                  {analysis.result}
-                </pre>
+              <div className="animate-fade-in">
+                <FormattedResult content={analysis.result} />
               </div>
             )}
 
             {analysis.status === 'error' && analysis.error_message && (
-              <div className="text-center py-8">
-                <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
-                <h3 className="text-lg font-medium mb-2">Erro na Análise</h3>
-                <p className="text-muted-foreground mb-4">
-                  {analysis.error_message}
-                </p>
-                <p className="text-sm text-subtle">
-                  Tente novamente ou entre em contato com o suporte se o problema persistir.
-                </p>
-              </div>
+              <ErrorHandler error={analysis.error_message} />
             )}
 
             {(analysis.status === 'pending' || analysis.status === 'processing') && (
@@ -204,16 +241,21 @@ export const EnhancedAnalysisResult: React.FC<EnhancedAnalysisResultProps> = ({
                   <p className="text-subtle">
                     Nossa IA está processando seu arquivo e gerando insights personalizados.
                   </p>
-                  <p className="text-xs text-muted-foreground mt-2">
-                    Este processo pode levar alguns minutos dependendo do tamanho do documento.
-                  </p>
+                  <div className="mt-3 text-xs text-muted-foreground space-y-1">
+                    <p>• Extração de texto e estrutura</p>
+                    <p>• Análise de conteúdo com IA</p>
+                    <p>• Geração de relatório detalhado</p>
+                  </div>
                 </div>
               </div>
             )}
           </>
         ) : (
           <div className="flex items-center justify-center h-64 text-muted-foreground">
-            <p>Carregando informações da análise...</p>
+            <div className="text-center space-y-2">
+              <div className="w-8 h-8 border-4 border-primary/20 border-t-primary rounded-full animate-spin mx-auto"></div>
+              <p>Carregando informações da análise...</p>
+            </div>
           </div>
         )}
       </div>
