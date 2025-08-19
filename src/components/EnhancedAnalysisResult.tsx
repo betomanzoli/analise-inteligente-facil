@@ -1,20 +1,16 @@
 
 import React, { useEffect, useState } from 'react';
-import { FileText, Download, Copy, Clock, CheckCircle, AlertCircle } from 'lucide-react';
+import { FileText, Download, Copy, Clock, CheckCircle, AlertCircle, BarChart3 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useFileUpload } from '@/hooks/useFileUpload';
+import { useAnalysisRecord } from '@/hooks/useAnalysisHistory';
 import { DetailedProgressIndicator } from './DetailedProgressIndicator';
 import { ErrorHandler } from './ErrorHandler';
 import { FormattedResult } from './FormattedResult';
-
-interface AnalysisRecord {
-  id: string;
-  file_name: string;
-  status: 'pending' | 'processing' | 'completed' | 'error';
-  result?: string;
-  error_message?: string;
-  created_at: string;
-}
+import { SectionNavigation } from './SectionNavigation';
+import { ResultExporter } from './ResultExporter';
+import { InteractiveVisualization } from './InteractiveVisualization';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 interface EnhancedAnalysisResultProps {
   analysisId: string | null;
@@ -38,43 +34,8 @@ export const EnhancedAnalysisResult: React.FC<EnhancedAnalysisResultProps> = ({
   onRetryUpload,
   isRetrying
 }) => {
-  const [analysis, setAnalysis] = useState<AnalysisRecord | null>(null);
-  const [isPolling, setIsPolling] = useState(false);
-  const { checkAnalysisStatus } = useFileUpload();
+  const { data: analysis, isLoading } = useAnalysisRecord(analysisId);
   const { toast } = useToast();
-
-  useEffect(() => {
-    if (!analysisId) return;
-
-    const pollStatus = async () => {
-      const result = await checkAnalysisStatus(analysisId);
-      if (result) {
-        setAnalysis(result);
-        
-        if (result.status === 'completed' || result.status === 'error') {
-          setIsPolling(false);
-          if (result.status === 'completed') {
-            toast({
-              title: "Análise concluída!",
-              description: "Seu documento foi analisado com sucesso.",
-            });
-          }
-        }
-      }
-    };
-
-    // Initial check
-    pollStatus();
-    setIsPolling(true);
-
-    // Poll every 3 seconds until completion
-    const interval = setInterval(pollStatus, 3000);
-
-    return () => {
-      clearInterval(interval);
-      setIsPolling(false);
-    };
-  }, [analysisId, checkAnalysisStatus, toast]);
 
   const handleCopy = async () => {
     if (analysis?.result) {
@@ -91,25 +52,6 @@ export const EnhancedAnalysisResult: React.FC<EnhancedAnalysisResultProps> = ({
           variant: "destructive",
         });
       }
-    }
-  };
-
-  const handleDownload = () => {
-    if (analysis?.result) {
-      const blob = new Blob([analysis.result], { type: 'text/plain;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `analise_${analysis.file_name?.replace('.pdf', '') || 'documento'}.txt`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-      
-      toast({
-        title: "Download iniciado",
-        description: "O relatório está sendo baixado.",
-      });
     }
   };
 
@@ -190,13 +132,10 @@ export const EnhancedAnalysisResult: React.FC<EnhancedAnalysisResultProps> = ({
             >
               <Copy className="h-4 w-4" />
             </button>
-            <button
-              onClick={handleDownload}
-              className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors"
-              title="Baixar relatório"
-            >
-              <Download className="h-4 w-4" />
-            </button>
+            <ResultExporter 
+              content={analysis.result} 
+              fileName={analysis.file_name?.replace('.pdf', '') || 'documento'} 
+            />
           </div>
         )}
       </div>
@@ -223,7 +162,30 @@ export const EnhancedAnalysisResult: React.FC<EnhancedAnalysisResultProps> = ({
             {/* Content */}
             {analysis.status === 'completed' && analysis.result && (
               <div className="animate-fade-in">
-                <FormattedResult content={analysis.result} />
+                <Tabs defaultValue="formatted" className="w-full">
+                  <TabsList className="grid w-full grid-cols-3">
+                    <TabsTrigger value="formatted">Relatório</TabsTrigger>
+                    <TabsTrigger value="visualization">Visualizações</TabsTrigger>
+                    <TabsTrigger value="navigation">Navegação</TabsTrigger>
+                  </TabsList>
+                  
+                  <TabsContent value="formatted" className="mt-4">
+                    <FormattedResult content={analysis.result} />
+                  </TabsContent>
+                  
+                  <TabsContent value="visualization" className="mt-4">
+                    <InteractiveVisualization content={analysis.result} />
+                  </TabsContent>
+                  
+                  <TabsContent value="navigation" className="mt-4">
+                    <div className="flex">
+                      <div className="flex-1 pr-4">
+                        <FormattedResult content={analysis.result} />
+                      </div>
+                      <SectionNavigation content={analysis.result} />
+                    </div>
+                  </TabsContent>
+                </Tabs>
               </div>
             )}
 
@@ -250,14 +212,14 @@ export const EnhancedAnalysisResult: React.FC<EnhancedAnalysisResultProps> = ({
               </div>
             )}
           </>
-        ) : (
+        ) : isLoading ? (
           <div className="flex items-center justify-center h-64 text-muted-foreground">
             <div className="text-center space-y-2">
               <div className="w-8 h-8 border-4 border-primary/20 border-t-primary rounded-full animate-spin mx-auto"></div>
               <p>Carregando informações da análise...</p>
             </div>
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   );

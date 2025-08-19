@@ -1,7 +1,5 @@
-
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { useToast } from '@/hooks/use-toast';
 
 interface UploadProgress {
   percentage: number;
@@ -13,188 +11,173 @@ interface UploadProgress {
 interface AnalysisRecord {
   id: string;
   file_name: string;
-  file_path: string;
-  file_size: number;
-  instruction: string;
   status: 'pending' | 'processing' | 'completed' | 'error';
   result?: string;
   error_message?: string;
-  created_at: string;
-  updated_at: string;
 }
 
 export const useFileUpload = () => {
-  const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
   const [isUploading, setIsUploading] = useState(false);
-  const [analysisId, setAnalysisId] = useState<string | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const { toast } = useToast();
 
-  const uploadFile = async (file: File, instruction: string): Promise<string | null> => {
-    if (!file || !instruction.trim()) {
-      toast({
-        title: "Dados incompletos",
-        description: "Por favor, selecione um arquivo e forneça instruções.",
-        variant: "destructive",
-      });
-      return null;
-    }
-
+  const uploadFile = useCallback(async (file: File, instruction: string = ''): Promise<string | null> => {
+    console.log('Starting file upload process...');
+    
     setIsUploading(true);
     setError(null);
-    setUploadProgress({ 
-      percentage: 0, 
-      stage: "Iniciando processo...", 
-      currentStep: 1, 
-      totalSteps: 6 
+    setUploadProgress({
+      percentage: 0,
+      stage: 'Preparando upload...',
+      currentStep: 1,
+      totalSteps: 6
     });
 
     try {
-      // Step 1: Validate file
-      setUploadProgress({ 
-        percentage: 10, 
-        stage: "Validando arquivo...", 
-        currentStep: 1, 
-        totalSteps: 6 
+      // Get current user session
+      const { data: { session } } = await supabase.auth.getSession();
+      console.log('User session:', session?.user?.id ? 'Authenticated' : 'Anonymous');
+
+      // Step 1: Upload to Supabase Storage
+      setUploadProgress({
+        percentage: 15,
+        stage: 'Fazendo upload do arquivo...',
+        currentStep: 2,
+        totalSteps: 6
       });
 
-      // Step 2: Get signed upload URL
-      setUploadProgress({ 
-        percentage: 20, 
-        stage: "Preparando upload seguro...", 
-        currentStep: 2, 
-        totalSteps: 6 
-      });
-      
-      const { data: uploadData, error: uploadError } = await supabase.functions.invoke('analyze-document', {
-        body: {
-          action: 'upload',
-          fileName: file.name,
-          fileSize: file.size,
-          instruction: instruction
-        }
-      });
+      const fileName = `${Date.now()}_${file.name}`;
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('documents')
+        .upload(fileName, file);
 
-      if (uploadError || !uploadData?.success) {
-        throw new Error(uploadData?.error || 'Falha ao preparar upload');
+      if (uploadError) {
+        throw new Error(`Erro no upload: ${uploadError.message}`);
       }
 
-      const { uploadUrl, analysisId: newAnalysisId } = uploadData;
-      setAnalysisId(newAnalysisId);
+      console.log('File uploaded to storage:', uploadData.path);
 
-      // Step 3: Upload file to Supabase Storage
-      setUploadProgress({ 
-        percentage: 40, 
-        stage: "Enviando arquivo para a nuvem...", 
-        currentStep: 3, 
-        totalSteps: 6 
+      // Step 2: Create analysis record
+      setUploadProgress({
+        percentage: 30,
+        stage: 'Criando registro de análise...',
+        currentStep: 3,
+        totalSteps: 6
       });
 
-      const uploadResponse = await fetch(uploadUrl, {
-        method: 'PUT',
-        body: file,
+      const analysisData = {
+        file_name: file.name,
+        file_path: uploadData.path,
+        file_size: file.size,
+        instruction: instruction || 'Análise padrão do documento',
+        status: 'pending' as const,
+        user_id: session?.user?.id || null, // Support both authenticated and anonymous users
+      };
+
+      const { data: recordData, error: recordError } = await supabase
+        .from('analysis_records')
+        .insert(analysisData)
+        .select()
+        .single();
+
+      if (recordError) {
+        throw new Error(`Erro ao criar registro: ${recordError.message}`);
+      }
+
+      console.log('Analysis record created:', recordData.id);
+
+      // Step 3: Trigger webhook
+      setUploadProgress({
+        percentage: 50,
+        stage: 'Enviando para processamento...',
+        currentStep: 4,
+        totalSteps: 6
+      });
+
+      const webhookResponse = await fetch('https://hook.us2.make.com/5qwckbipv8xz9v2pcfxlhyk81tkclyh2', {
+        method: 'POST',
         headers: {
-          'Content-Type': 'application/pdf',
-          'x-upsert': 'false'
-        }
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          analysis_id: recordData.id,
+          file_path: uploadData.path,
+          file_name: file.name,
+          instruction: instruction,
+          user_id: session?.user?.id || null,
+        }),
       });
 
-      if (!uploadResponse.ok) {
-        throw new Error('Falha no upload do arquivo para o storage');
+      setUploadProgress({
+        percentage: 75,
+        stage: 'Webhook enviado, aguardando confirmação...',
+        currentStep: 5,
+        totalSteps: 6
+      });
+
+      if (!webhookResponse.ok) {
+        throw new Error(`Erro no webhook: ${webhookResponse.status}`);
       }
 
-      // Step 4: Trigger analysis processing
-      setUploadProgress({ 
-        percentage: 60, 
-        stage: "Conectando com sistema de análise...", 
-        currentStep: 4, 
-        totalSteps: 6 
+      console.log('Webhook sent successfully');
+
+      // Step 4: Complete
+      setUploadProgress({
+        percentage: 100,
+        stage: 'Upload concluído! Iniciando análise...',
+        currentStep: 6,
+        totalSteps: 6
       });
 
-      const { error: processError } = await supabase.functions.invoke('analyze-document', {
-        body: {
-          action: 'process',
-          analysisId: newAnalysisId,
-          filePath: uploadData.path
-        }
-      });
+      // Clear progress after a short delay
+      setTimeout(() => {
+        setUploadProgress(null);
+      }, 2000);
 
-      if (processError) {
-        throw new Error('Falha ao iniciar processo de análise');
-      }
-
-      // Step 5: Analysis started
-      setUploadProgress({ 
-        percentage: 80, 
-        stage: "Análise iniciada - processamento em andamento...", 
-        currentStep: 5, 
-        totalSteps: 6 
-      });
-
-      // Step 6: Complete
-      setUploadProgress({ 
-        percentage: 100, 
-        stage: "Upload concluído! Análise em processamento...", 
-        currentStep: 6, 
-        totalSteps: 6 
-      });
-
-      toast({
-        title: "Upload concluído!",
-        description: "Seu documento foi enviado e a análise foi iniciada.",
-      });
-
-      return newAnalysisId;
+      return recordData.id;
 
     } catch (error) {
-      console.error('Upload error:', error);
-      const errorMessage = error instanceof Error ? error.message : "Erro desconhecido durante o upload";
+      console.error('Upload failed:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido no upload';
       setError(errorMessage);
-      
-      toast({
-        title: "Erro no upload",
-        description: errorMessage,
-        variant: "destructive",
-      });
+      setUploadProgress(null);
       return null;
     } finally {
       setIsUploading(false);
-      setTimeout(() => setUploadProgress(null), 3000);
     }
-  };
+  }, []);
 
-  const retryUpload = (file: File, instruction: string) => {
-    setError(null);
+  const retryUpload = useCallback(async (file: File, instruction: string = ''): Promise<string | null> => {
+    console.log('Retrying file upload...');
     return uploadFile(file, instruction);
-  };
+  }, [uploadFile]);
 
-  const checkAnalysisStatus = async (id: string): Promise<AnalysisRecord | null> => {
+  const checkAnalysisStatus = useCallback(async (analysisId: string): Promise<AnalysisRecord | null> => {
     try {
-      const { data, error } = await supabase.functions.invoke('analyze-document', {
-        body: {
-          action: 'status',
-          analysisId: id
-        }
-      });
+      const { data, error } = await supabase
+        .from('analysis_records')
+        .select('*')
+        .eq('id', analysisId)
+        .single();
 
-      if (error || !data?.success) {
-        throw new Error(data?.error || 'Falha ao verificar status da análise');
+      if (error) {
+        console.error('Error fetching analysis record:', error);
+        return null;
       }
 
-      return data.analysis;
+      return data || null;
     } catch (error) {
-      console.error('Status check error:', error);
+      console.error('Failed to fetch analysis record:', error);
       return null;
     }
-  };
+  }, []);
 
   return {
     uploadFile,
     retryUpload,
     checkAnalysisStatus,
-    uploadProgress,
     isUploading,
-    analysisId,
-    error
+    uploadProgress,
+    error,
   };
 };
