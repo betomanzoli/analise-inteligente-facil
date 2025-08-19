@@ -1,3 +1,4 @@
+
 import { useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -165,7 +166,11 @@ export const useFileUpload = () => {
         return null;
       }
 
-      return data || null;
+      // Type assertion to ensure status matches our union type
+      return data ? {
+        ...data,
+        status: data.status as 'pending' | 'processing' | 'completed' | 'error'
+      } : null;
     } catch (error) {
       console.error('Failed to fetch analysis record:', error);
       return null;

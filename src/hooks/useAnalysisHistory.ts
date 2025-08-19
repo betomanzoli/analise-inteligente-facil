@@ -29,7 +29,12 @@ export const useAnalysisHistory = () => {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      return data || [];
+      
+      // Type assertion to ensure status matches our union type
+      return (data || []).map(record => ({
+        ...record,
+        status: record.status as 'pending' | 'processing' | 'completed' | 'error'
+      }));
     },
     enabled: !!user,
   });
@@ -48,12 +53,17 @@ export const useAnalysisRecord = (id: string | null) => {
         .single();
 
       if (error) throw error;
-      return data;
+      
+      // Type assertion to ensure status matches our union type
+      return data ? {
+        ...data,
+        status: data.status as 'pending' | 'processing' | 'completed' | 'error'
+      } : null;
     },
     enabled: !!id,
     refetchInterval: (data) => {
       // Keep polling if status is pending or processing
-      if (data?.status === 'pending' || data?.status === 'processing') {
+      if (data && (data.status === 'pending' || data.status === 'processing')) {
         return 3000;
       }
       return false;
