@@ -103,8 +103,8 @@ serve(async (req) => {
           throw new Error('Failed to generate download URL')
         }
 
-        // Call n8n webhook (placeholder - you'll need to provide the actual webhook URL)
-        const makeWebhookUrl = 'https://hook.us1.make.com/a2wf9rkk9gmwfmfv4jbhoak75b501igd' // Replace with actual webhook URL
+        // Call Make.com webhook
+        const makeWebhookUrl = 'https://hook.us1.make.com/a2wf9rkk9gmwfmfv4jbhoak75b501igd'
         
         const webhookPayload = {
           analysisId: analysisId,
@@ -114,54 +114,35 @@ serve(async (req) => {
           callbackUrl: `${Deno.env.get('SUPABASE_URL')}/functions/v1/analyze-document`
         }
 
-        console.log('Calling n8n webhook with payload:', webhookPayload)
+        console.log('Calling Make.com webhook with payload:', webhookPayload)
 
-        // For now, simulate the n8n call with a timeout
-        // Replace this with actual webhook call:
-        // const webhookResponse = await fetch(n8nWebhookUrl, {
-        //   method: 'POST',
-        //   headers: { 'Content-Type': 'application/json' },
-        //   body: JSON.stringify(webhookPayload)
-        // })
+        try {
+          const webhookResponse = await fetch(makeWebhookUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(webhookPayload)
+          })
 
-        // Simulate processing time and return mock result
-        setTimeout(async () => {
-          const mockResult = `RELATÓRIO DE ANÁLISE - ${analysisRecord.file_name}
-═══════════════════════════════════════════════════
+          if (!webhookResponse.ok) {
+            throw new Error(`Make.com webhook failed: ${webhookResponse.status}`)
+          }
 
-INSTRUÇÃO RECEBIDA:
-${analysisRecord.instruction}
+          console.log('Make.com webhook called successfully')
 
-RESUMO EXECUTIVO:
-Este documento foi processado com sucesso pela nossa IA avançada.
-
-PRINCIPAIS INSIGHTS:
-• Documento analisado com ${Math.floor(Math.random() * 50 + 10)} páginas
-• Identificados ${Math.floor(Math.random() * 20 + 5)} pontos principais  
-• Nível de complexidade: ${['Baixo', 'Médio', 'Alto'][Math.floor(Math.random() * 3)]}
-• Conformidade regulatória: Verificada
-
-RECOMENDAÇÕES ESTRATÉGICAS:
-1. Revisar as seções destacadas para melhor compreensão
-2. Implementar as sugestões identificadas no documento
-3. Acompanhar os próximos passos recomendados
-4. Validar com equipe técnica especializada
-
-CONCLUSÃO:
-A análise foi concluída com sucesso. Os insights gerados seguem as melhores práticas do setor e podem ser utilizados para tomada de decisões estratégicas.
-
-═══════════════════════════════════════════════════
-Relatório gerado em: ${new Date().toLocaleString('pt-BR')}`
-
+        } catch (webhookError) {
+          console.error('Make.com webhook error:', webhookError)
+          
+          // Update status to error if webhook fails
           await supabase
             .from('analysis_records')
             .update({ 
-              status: 'completed',
-              result: mockResult,
-              n8n_execution_id: `mock_${Date.now()}`
+              status: 'error',
+              error_message: `Webhook error: ${webhookError.message}`
             })
             .eq('id', analysisId)
-        }, 5000) // 5 second delay for demo
+
+          throw new Error('Failed to call Make.com webhook')
+        }
 
         return new Response(
           JSON.stringify({
@@ -198,11 +179,11 @@ Relatório gerado em: ${new Date().toLocaleString('pt-BR')}`
       }
     }
 
-    // Handle n8n callback (webhook from n8n with results)
+    // Handle Make.com callback (webhook from Make.com with results)
     if (req.method === 'PUT') {
       const { analysisId, result, error } = await req.json()
       
-      console.log('Received callback from n8n for analysis:', analysisId)
+      console.log('Received callback from Make.com for analysis:', analysisId)
       
       if (error) {
         await supabase
