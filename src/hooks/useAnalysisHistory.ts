@@ -61,8 +61,9 @@ export const useAnalysisRecord = (id: string | null) => {
       } : null;
     },
     enabled: !!id,
-    refetchInterval: (data) => {
+    refetchInterval: (query) => {
       // Keep polling if status is pending or processing
+      const data = query.data;
       if (data && (data.status === 'pending' || data.status === 'processing')) {
         return 3000;
       }
