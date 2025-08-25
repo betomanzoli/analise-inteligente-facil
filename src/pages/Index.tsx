@@ -1,20 +1,34 @@
 
 import React, { useState } from 'react';
 import { Header } from '@/components/Header';
-import { EnhancedAnalysisForm } from '@/components/EnhancedAnalysisForm';
+import { IngestionForm } from '@/components/IngestionForm';
+import { AIAnalysisForm } from '@/components/AIAnalysisForm';
 import { EnhancedAnalysisResult } from '@/components/EnhancedAnalysisResult';
 import { AnalysisHistorySidebar } from '@/components/AnalysisHistorySidebar';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Database, Brain } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 
 const Index = () => {
   const [currentAnalysisIds, setCurrentAnalysisIds] = useState<string[]>([]);
+  const [currentAnalysisQuery, setCurrentAnalysisQuery] = useState<string>('');
   const [showHistory, setShowHistory] = useState(false);
+  const [activeTab, setActiveTab] = useState('ingestion');
   
   const { user } = useAuth();
 
-  const handleAnalysisStart = (analysisId: string | string[]) => {
+  const handleIngestionComplete = (analysisId: string | string[]) => {
     const ids = Array.isArray(analysisId) ? analysisId : [analysisId];
     setCurrentAnalysisIds(ids);
+    // Manter na aba de ingestão para mostrar o progresso
+  };
+
+  const handleAnalysisStart = async (query: string) => {
+    setCurrentAnalysisQuery(query);
+    // TODO: Implementar chamada para o webhook de análise
+    // Por enquanto, vamos simular criando um ID temporário
+    const tempAnalysisId = `analysis-${Date.now()}`;
+    setCurrentAnalysisIds([tempAnalysisId]);
   };
 
   const handleSelectAnalysis = (analysisId: string) => {
@@ -43,37 +57,60 @@ const Index = () => {
         {/* Main Content */}
         <main className="flex-1 container mx-auto px-6 py-12">
           <div className="max-w-4xl mx-auto space-y-12">
-            {/* Formulário de análise */}
-            <section className="bg-surface-elevated rounded-2xl p-8 shadow-medium">
-              <EnhancedAnalysisForm onAnalysisStart={handleAnalysisStart} />
-            </section>
+            {/* Main Tabs */}
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+              <TabsList className="grid w-full grid-cols-2 mb-8">
+                <TabsTrigger value="ingestion" className="flex items-center space-x-2">
+                  <Database className="h-4 w-4" />
+                  <span>Ingestão</span>
+                </TabsTrigger>
+                <TabsTrigger value="analysis" className="flex items-center space-x-2">
+                  <Brain className="h-4 w-4" />
+                  <span>Análise IA</span>
+                </TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="ingestion">
+                <section className="bg-surface-elevated rounded-2xl p-8 shadow-medium">
+                  <IngestionForm onIngestionComplete={handleIngestionComplete} />
+                </section>
+              </TabsContent>
+              
+              <TabsContent value="analysis">
+                <section className="bg-surface-elevated rounded-2xl p-8 shadow-medium">
+                  <AIAnalysisForm onAnalysisStart={handleAnalysisStart} />
+                </section>
+              </TabsContent>
+            </Tabs>
 
-            {/* Área de resultados */}
-            <section>
-              {currentAnalysisIds.length === 1 ? (
-                <EnhancedAnalysisResult
-                  analysisId={currentAnalysisIds[0]}
-                />
-              ) : currentAnalysisIds.length > 1 ? (
-                <div className="space-y-6">
-                  <h2 className="text-section-title">
-                    Análise em Lote ({currentAnalysisIds.length} documentos)
-                  </h2>
-                  <div className="grid gap-6">
-                    {currentAnalysisIds.map((analysisId, index) => (
-                      <div key={analysisId} className="border rounded-lg p-4">
-                        <h3 className="text-lg font-medium mb-4">
-                          Documento {index + 1}
-                        </h3>
-                        <EnhancedAnalysisResult
-                          analysisId={analysisId}
-                        />
-                      </div>
-                    ))}
+            {/* Results Area */}
+            {currentAnalysisIds.length > 0 && (
+              <section>
+                {currentAnalysisIds.length === 1 ? (
+                  <EnhancedAnalysisResult
+                    analysisId={currentAnalysisIds[0]}
+                  />
+                ) : (
+                  <div className="space-y-6">
+                    <h2 className="text-section-title">
+                      Ingestão em Lote ({currentAnalysisIds.length} documentos)
+                    </h2>
+                    <div className="grid gap-6">
+                      {currentAnalysisIds.map((analysisId, index) => (
+                        <div key={analysisId} className="border rounded-lg p-4">
+                          <h3 className="text-lg font-medium mb-4">
+                            Documento {index + 1}
+                          </h3>
+                          <EnhancedAnalysisResult
+                            analysisId={analysisId}
+                          />
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              ) : null}
-            </section>
+                )}
+              </section>
+            )}
           </div>
         </main>
       </div>
