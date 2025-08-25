@@ -19,12 +19,14 @@ export type Database = {
           batch_id: string | null
           created_at: string
           error_message: string | null
+          file_hash: string | null
           file_name: string
           file_path: string
           file_size: number
           id: string
           instruction: string
           n8n_execution_id: string | null
+          processing_timeout: string | null
           project_name: string | null
           result: string | null
           status: string
@@ -35,12 +37,14 @@ export type Database = {
           batch_id?: string | null
           created_at?: string
           error_message?: string | null
+          file_hash?: string | null
           file_name: string
           file_path: string
           file_size: number
           id?: string
           instruction: string
           n8n_execution_id?: string | null
+          processing_timeout?: string | null
           project_name?: string | null
           result?: string | null
           status?: string
@@ -51,12 +55,14 @@ export type Database = {
           batch_id?: string | null
           created_at?: string
           error_message?: string | null
+          file_hash?: string | null
           file_name?: string
           file_path?: string
           file_size?: number
           id?: string
           instruction?: string
           n8n_execution_id?: string | null
+          processing_timeout?: string | null
           project_name?: string | null
           result?: string | null
           status?: string

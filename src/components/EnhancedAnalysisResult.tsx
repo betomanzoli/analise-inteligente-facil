@@ -1,226 +1,256 @@
 
-import React, { useEffect, useState } from 'react';
-import { FileText, Download, Copy, Clock, CheckCircle, AlertCircle, BarChart3 } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
-import { useFileUpload } from '@/hooks/useFileUpload';
+import React, { useState, useEffect } from 'react';
+import { Clock, CheckCircle, XCircle, AlertTriangle, RefreshCw, Edit3, FileText } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
 import { useAnalysisRecord } from '@/hooks/useAnalysisHistory';
-import { DetailedProgressIndicator } from './DetailedProgressIndicator';
-import { ErrorHandler } from './ErrorHandler';
 import { FormattedResult } from './FormattedResult';
-import { SectionNavigation } from './SectionNavigation';
 import { ResultExporter } from './ResultExporter';
-import { InteractiveVisualization } from './InteractiveVisualization';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useToast } from '@/hooks/use-toast';
 
 interface EnhancedAnalysisResultProps {
-  analysisId: string | null;
-  fileName?: string;
-  uploadProgress?: {
-    percentage: number;
-    stage: string;
-    currentStep: number;
-    totalSteps: number;
-  } | null;
-  uploadError?: string | null;
-  onRetryUpload?: () => void;
-  isRetrying?: boolean;
+  analysisId: string;
+  onRetry?: (analysisId: string) => void;
+  onEdit?: (analysisId: string) => void;
 }
 
 export const EnhancedAnalysisResult: React.FC<EnhancedAnalysisResultProps> = ({
   analysisId,
-  fileName,
-  uploadProgress,
-  uploadError,
-  onRetryUpload,
-  isRetrying
+  onRetry,
+  onEdit
 }) => {
-  const { data: analysis, isLoading } = useAnalysisRecord(analysisId);
+  const { data: analysis, isLoading, error: queryError } = useAnalysisRecord(analysisId);
+  const [timeoutWarning, setTimeoutWarning] = useState(false);
   const { toast } = useToast();
 
-  const handleCopy = async () => {
-    if (analysis?.result) {
-      try {
-        await navigator.clipboard.writeText(analysis.result);
-        toast({
-          title: "Copiado!",
-          description: "O relatório foi copiado para a área de transferência.",
-        });
-      } catch (error) {
-        toast({
-          title: "Erro ao copiar",
-          description: "Não foi possível copiar o texto.",
-          variant: "destructive",
-        });
+  // Check for timeout
+  useEffect(() => {
+    if (analysis?.status === 'pending' || analysis?.status === 'processing') {
+      const timeout = setTimeout(() => {
+        setTimeoutWarning(true);
+      }, 5 * 60 * 1000); // 5 minutes
+
+      return () => clearTimeout(timeout);
+    }
+  }, [analysis?.status]);
+
+  // Auto-check for stale processes
+  useEffect(() => {
+    if (analysis && (analysis.status === 'pending' || analysis.status === 'processing')) {
+      const createdAt = new Date(analysis.created_at).getTime();
+      const now = Date.now();
+      const minutesElapsed = (now - createdAt) / (1000 * 60);
+      
+      if (minutesElapsed > 10) {
+        setTimeoutWarning(true);
       }
     }
-  };
+  }, [analysis]);
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'pending':
-      case 'processing':
-        return <Clock className="h-5 w-5 text-blue-500 animate-pulse" />;
-      case 'completed':
-        return <CheckCircle className="h-5 w-5 text-green-500" />;
-      case 'error':
-        return <AlertCircle className="h-5 w-5 text-red-500" />;
-      default:
-        return null;
-    }
-  };
-
-  const getStatusText = (status: string) => {
-    switch (status) {
-      case 'pending':
-        return 'Aguardando processamento...';
-      case 'processing':
-        return 'Analisando documento com IA...';
-      case 'completed':
-        return 'Análise concluída';
-      case 'error':
-        return 'Erro na análise';
-      default:
-        return 'Status desconhecido';
-    }
-  };
-
-  // Show upload progress if uploading
-  if (uploadProgress) {
+  if (isLoading) {
     return (
-      <div className="space-y-4">
-        <h2 className="text-section-title flex items-center space-x-2">
-          <FileText className="h-6 w-6" />
-          <span>Upload em Progresso</span>
-        </h2>
-        
-        <div className="result-card">
-          <DetailedProgressIndicator 
-            progress={uploadProgress}
-            error={uploadError}
-          />
+      <div className="result-card animate-pulse">
+        <div className="flex items-center space-x-3">
+          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+          <div>
+            <div className="h-4 bg-muted rounded w-32 mb-2"></div>
+            <div className="h-3 bg-muted rounded w-24"></div>
+          </div>
         </div>
-        
-        {uploadError && onRetryUpload && (
-          <ErrorHandler
-            error={uploadError}
-            onRetry={onRetryUpload}
-            isRetrying={isRetrying}
-          />
-        )}
       </div>
     );
   }
 
-  if (!analysisId) {
-    return null;
+  if (queryError || !analysis) {
+    return (
+      <Alert variant="destructive">
+        <XCircle className="h-4 w-4" />
+        <AlertDescription>
+          Erro ao carregar resultado da análise. Tente recarregar a página.
+        </AlertDescription>
+      </Alert>
+    );
   }
+
+  const getStatusConfig = () => {
+    switch (analysis.status) {
+      case 'pending':
+        return {
+          icon: <Clock className="h-5 w-5 text-amber-500" />,
+          text: 'Aguardando processamento',
+          color: 'text-amber-600',
+          bgColor: 'bg-amber-50 border-amber-200'
+        };
+      case 'processing':
+        return {
+          icon: <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-500"></div>,
+          text: 'Processando documento',
+          color: 'text-blue-600',
+          bgColor: 'bg-blue-50 border-blue-200'
+        };
+      case 'completed':
+        return {
+          icon: <CheckCircle className="h-5 w-5 text-green-500" />,
+          text: 'Análise concluída',
+          color: 'text-green-600',
+          bgColor: 'bg-green-50 border-green-200'
+        };
+      case 'error':
+        return {
+          icon: <XCircle className="h-5 w-5 text-red-500" />,
+          text: 'Erro no processamento',
+          color: 'text-red-600',
+          bgColor: 'bg-red-50 border-red-200'
+        };
+      default:
+        return {
+          icon: <AlertTriangle className="h-5 w-5 text-gray-500" />,
+          text: 'Status desconhecido',
+          color: 'text-gray-600',
+          bgColor: 'bg-gray-50 border-gray-200'
+        };
+    }
+  };
+
+  const statusConfig = getStatusConfig();
+
+  const handleRetry = () => {
+    if (onRetry) {
+      onRetry(analysisId);
+      setTimeoutWarning(false);
+    } else {
+      toast({
+        title: "Função não disponível",
+        description: "A função de retry não está disponível neste contexto.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleEdit = () => {
+    if (onEdit) {
+      onEdit(analysisId);
+    } else {
+      toast({
+        title: "Função não disponível",
+        description: "A função de edição não está disponível neste contexto.",
+        variant: "destructive",
+      });
+    }
+  };
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-section-title flex items-center space-x-2">
-          <FileText className="h-6 w-6" />
-          <span>Relatório de Análise</span>
-        </h2>
-        
-        {analysis?.result && (
-          <div className="flex space-x-2">
-            <button
-              onClick={handleCopy}
-              className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors"
-              title="Copiar relatório"
-            >
-              <Copy className="h-4 w-4" />
-            </button>
-            <ResultExporter 
-              content={analysis.result} 
-              fileName={analysis.file_name?.replace('.pdf', '') || 'documento'} 
-            />
+      <div className={`result-card animate-slide-up border ${statusConfig.bgColor}`}>
+        <div className="flex items-start justify-between">
+          <div className="flex items-center space-x-3">
+            {statusConfig.icon}
+            <div>
+              <h3 className={`font-medium ${statusConfig.color}`}>
+                {statusConfig.text}
+              </h3>
+              <div className="flex items-center space-x-2 text-sm text-subtle mt-1">
+                <FileText className="h-4 w-4" />
+                <span>{analysis.file_name}</span>
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Criado em {new Date(analysis.created_at).toLocaleString()}
+              </p>
+            </div>
+          </div>
+
+          {(analysis.status === 'error' || timeoutWarning) && (
+            <div className="flex gap-2">
+              {onEdit && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleEdit}
+                  className="flex items-center gap-2"
+                >
+                  <Edit3 className="h-4 w-4" />
+                  Editar
+                </Button>
+              )}
+              {onRetry && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleRetry}
+                  className="flex items-center gap-2"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                  Tentar Novamente
+                </Button>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Timeout Warning */}
+        {timeoutWarning && analysis.status !== 'error' && analysis.status !== 'completed' && (
+          <Alert className="mt-4 bg-amber-50 border-amber-200">
+            <AlertTriangle className="h-4 w-4 text-amber-600" />
+            <AlertDescription className="text-amber-800">
+              O processamento está demorando mais que o esperado. Isso pode indicar um problema no servidor.
+              {onRetry && (
+                <Button
+                  variant="link"
+                  size="sm"
+                  onClick={handleRetry}
+                  className="ml-2 p-0 h-auto text-amber-700 underline"
+                >
+                  Tentar novamente
+                </Button>
+              )}
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Error Message */}
+        {analysis.status === 'error' && analysis.error_message && (
+          <Alert variant="destructive" className="mt-4">
+            <XCircle className="h-4 w-4" />
+            <AlertDescription>
+              <strong>Erro:</strong> {analysis.error_message}
+              <div className="mt-2 text-sm">
+                Por favor, verifique se o arquivo está íntegro e tente novamente.
+              </div>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Processing Progress */}
+        {(analysis.status === 'pending' || analysis.status === 'processing') && (
+          <div className="mt-4">
+            <div className="flex justify-between text-sm text-muted-foreground mb-2">
+              <span>Progresso da análise</span>
+              <span>{analysis.status === 'processing' ? 'Em andamento...' : 'Na fila'}</span>
+            </div>
+            <div className="w-full bg-muted rounded-full h-2">
+              <div 
+                className={`h-2 rounded-full transition-all duration-500 ${
+                  analysis.status === 'processing' ? 'bg-blue-500 animate-pulse' : 'bg-amber-400'
+                }`}
+                style={{ 
+                  width: analysis.status === 'processing' ? '60%' : '30%' 
+                }}
+              />
+            </div>
           </div>
         )}
       </div>
 
-      <div className="result-card min-h-[300px]">
-        {analysis ? (
-          <>
-            {/* Status Header */}
-            <div className="flex items-center space-x-3 mb-6 p-4 bg-muted/50 rounded-lg">
-              {getStatusIcon(analysis.status)}
-              <div>
-                <p className="font-medium">{getStatusText(analysis.status)}</p>
-                <p className="text-sm text-subtle">
-                  Arquivo: {analysis.file_name}
-                </p>
-                {(analysis.status === 'processing' || analysis.status === 'pending') && (
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Este processo pode levar alguns minutos dependendo do tamanho do documento
-                  </p>
-                )}
-              </div>
-            </div>
-
-            {/* Content */}
-            {analysis.status === 'completed' && analysis.result && (
-              <div className="animate-fade-in">
-                <Tabs defaultValue="formatted" className="w-full">
-                  <TabsList className="grid w-full grid-cols-3">
-                    <TabsTrigger value="formatted">Relatório</TabsTrigger>
-                    <TabsTrigger value="visualization">Visualizações</TabsTrigger>
-                    <TabsTrigger value="navigation">Navegação</TabsTrigger>
-                  </TabsList>
-                  
-                  <TabsContent value="formatted" className="mt-4">
-                    <FormattedResult content={analysis.result} />
-                  </TabsContent>
-                  
-                  <TabsContent value="visualization" className="mt-4">
-                    <InteractiveVisualization content={analysis.result} />
-                  </TabsContent>
-                  
-                  <TabsContent value="navigation" className="mt-4">
-                    <div className="flex">
-                      <div className="flex-1 pr-4">
-                        <FormattedResult content={analysis.result} />
-                      </div>
-                      <SectionNavigation content={analysis.result} />
-                    </div>
-                  </TabsContent>
-                </Tabs>
-              </div>
-            )}
-
-            {analysis.status === 'error' && analysis.error_message && (
-              <ErrorHandler error={analysis.error_message} />
-            )}
-
-            {(analysis.status === 'pending' || analysis.status === 'processing') && (
-              <div className="flex flex-col items-center justify-center h-64 space-y-4">
-                <div className="relative">
-                  <div className="w-12 h-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin"></div>
-                </div>
-                <div className="text-center">
-                  <p className="text-lg font-medium">{getStatusText(analysis.status)}</p>
-                  <p className="text-subtle">
-                    Nossa IA está processando seu arquivo e gerando insights personalizados.
-                  </p>
-                  <div className="mt-3 text-xs text-muted-foreground space-y-1">
-                    <p>• Extração de texto e estrutura</p>
-                    <p>• Análise de conteúdo com IA</p>
-                    <p>• Geração de relatório detalhado</p>
-                  </div>
-                </div>
-              </div>
-            )}
-          </>
-        ) : isLoading ? (
-          <div className="flex items-center justify-center h-64 text-muted-foreground">
-            <div className="text-center space-y-2">
-              <div className="w-8 h-8 border-4 border-primary/20 border-t-primary rounded-full animate-spin mx-auto"></div>
-              <p>Carregando informações da análise...</p>
-            </div>
-          </div>
-        ) : null}
-      </div>
+      {/* Analysis Result */}
+      {analysis.status === 'completed' && analysis.result && (
+        <div className="space-y-4">
+          <FormattedResult content={analysis.result} />
+          <ResultExporter 
+            content={analysis.result}
+            fileName={analysis.file_name}
+          />
+        </div>
+      )}
     </div>
   );
 };
