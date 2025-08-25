@@ -4,33 +4,17 @@ import { Header } from '@/components/Header';
 import { EnhancedAnalysisForm } from '@/components/EnhancedAnalysisForm';
 import { EnhancedAnalysisResult } from '@/components/EnhancedAnalysisResult';
 import { AnalysisHistorySidebar } from '@/components/AnalysisHistorySidebar';
-import { useFileUpload } from '@/hooks/useFileUpload';
 import { useAuth } from '@/contexts/AuthContext';
 
 const Index = () => {
   const [currentAnalysisIds, setCurrentAnalysisIds] = useState<string[]>([]);
-  const [uploadFile, setUploadFile] = useState<File | null>(null);
-  const [uploadInstruction, setUploadInstruction] = useState<string>('');
   const [showHistory, setShowHistory] = useState(false);
   
-  const { uploadProgress, error, isUploading, retryUpload } = useFileUpload();
   const { user } = useAuth();
 
-  const handleAnalysisStart = (analysisId: string | string[], file?: File, instruction?: string) => {
+  const handleAnalysisStart = (analysisId: string | string[]) => {
     const ids = Array.isArray(analysisId) ? analysisId : [analysisId];
     setCurrentAnalysisIds(ids);
-    if (file) setUploadFile(file);
-    if (instruction) setUploadInstruction(instruction);
-  };
-
-  const handleRetryUpload = () => {
-    if (uploadFile && uploadInstruction) {
-      retryUpload(uploadFile, uploadInstruction).then((analysisId) => {
-        if (analysisId) {
-          setCurrentAnalysisIds([analysisId]);
-        }
-      });
-    }
   };
 
   const handleSelectAnalysis = (analysisId: string) => {
@@ -69,10 +53,6 @@ const Index = () => {
               {currentAnalysisIds.length === 1 ? (
                 <EnhancedAnalysisResult
                   analysisId={currentAnalysisIds[0]}
-                  uploadProgress={uploadProgress}
-                  uploadError={error}
-                  onRetryUpload={handleRetryUpload}
-                  isRetrying={isUploading}
                 />
               ) : currentAnalysisIds.length > 1 ? (
                 <div className="space-y-6">
@@ -87,8 +67,6 @@ const Index = () => {
                         </h3>
                         <EnhancedAnalysisResult
                           analysisId={analysisId}
-                          uploadProgress={null}
-                          uploadError={null}
                         />
                       </div>
                     ))}
