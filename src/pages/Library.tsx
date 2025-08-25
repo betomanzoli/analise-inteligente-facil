@@ -3,12 +3,15 @@ import React, { useState } from 'react';
 import { Header } from '@/components/Header';
 import { KnowledgeLibrary } from '@/components/KnowledgeLibrary';
 import { EnhancedAnalysisResult } from '@/components/EnhancedAnalysisResult';
-import { ArrowLeft } from 'lucide-react';
+import { AdvancedAnalytics } from '@/components/AdvancedAnalytics';
+import { ArrowLeft, Search, BarChart3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/contexts/AuthContext';
 
 const Library = () => {
   const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState('library');
   const { user } = useAuth();
 
   const handleViewDocument = (documentId: string) => {
@@ -17,6 +20,12 @@ const Library = () => {
 
   const handleBackToLibrary = () => {
     setSelectedDocumentId(null);
+    setActiveTab('library');
+  };
+
+  const handleSelectFromAnalytics = (documentId: string) => {
+    setSelectedDocumentId(documentId);
+    setActiveTab('library'); // Switch to library tab to show the document
   };
 
   if (!user) {
@@ -54,7 +63,26 @@ const Library = () => {
             <EnhancedAnalysisResult analysisId={selectedDocumentId} />
           </div>
         ) : (
-          <KnowledgeLibrary onViewDocument={handleViewDocument} />
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <TabsList className="grid w-full grid-cols-2 mb-8">
+              <TabsTrigger value="library" className="flex items-center space-x-2">
+                <Search className="h-4 w-4" />
+                <span>Biblioteca</span>
+              </TabsTrigger>
+              <TabsTrigger value="analytics" className="flex items-center space-x-2">
+                <BarChart3 className="h-4 w-4" />
+                <span>Analytics Avançado</span>
+              </TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="library">
+              <KnowledgeLibrary onViewDocument={handleViewDocument} />
+            </TabsContent>
+            
+            <TabsContent value="analytics">
+              <AdvancedAnalytics onSelectDocument={handleSelectFromAnalytics} />
+            </TabsContent>
+          </Tabs>
         )}
       </main>
       
