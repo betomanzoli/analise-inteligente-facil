@@ -16,6 +16,7 @@ export type Database = {
     Tables: {
       analysis_records: {
         Row: {
+          batch_id: string | null
           created_at: string
           error_message: string | null
           file_name: string
@@ -24,12 +25,14 @@ export type Database = {
           id: string
           instruction: string
           n8n_execution_id: string | null
+          project_name: string | null
           result: string | null
           status: string
           updated_at: string
           user_id: string | null
         }
         Insert: {
+          batch_id?: string | null
           created_at?: string
           error_message?: string | null
           file_name: string
@@ -38,12 +41,14 @@ export type Database = {
           id?: string
           instruction: string
           n8n_execution_id?: string | null
+          project_name?: string | null
           result?: string | null
           status?: string
           updated_at?: string
           user_id?: string | null
         }
         Update: {
+          batch_id?: string | null
           created_at?: string
           error_message?: string | null
           file_name?: string
@@ -52,12 +57,85 @@ export type Database = {
           id?: string
           instruction?: string
           n8n_execution_id?: string | null
+          project_name?: string | null
           result?: string | null
           status?: string
           updated_at?: string
           user_id?: string | null
         }
         Relationships: []
+      }
+      document_projects: {
+        Row: {
+          analysis_record_id: string
+          created_at: string
+          id: string
+          project_id: string
+        }
+        Insert: {
+          analysis_record_id: string
+          created_at?: string
+          id?: string
+          project_id: string
+        }
+        Update: {
+          analysis_record_id?: string
+          created_at?: string
+          id?: string
+          project_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_projects_analysis_record_id_fkey"
+            columns: ["analysis_record_id"]
+            isOneToOne: false
+            referencedRelation: "analysis_records"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_projects_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      document_tags: {
+        Row: {
+          analysis_record_id: string
+          created_at: string
+          id: string
+          tag_id: string
+        }
+        Insert: {
+          analysis_record_id: string
+          created_at?: string
+          id?: string
+          tag_id: string
+        }
+        Update: {
+          analysis_record_id?: string
+          created_at?: string
+          id?: string
+          tag_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_tags_analysis_record_id_fkey"
+            columns: ["analysis_record_id"]
+            isOneToOne: false
+            referencedRelation: "analysis_records"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_tags_tag_id_fkey"
+            columns: ["tag_id"]
+            isOneToOne: false
+            referencedRelation: "tags"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
@@ -80,6 +158,54 @@ export type Database = {
           full_name?: string | null
           id?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      projects: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      tags: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          user_id?: string
         }
         Relationships: []
       }
