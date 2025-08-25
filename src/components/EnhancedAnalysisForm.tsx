@@ -2,10 +2,13 @@
 import React, { useState } from 'react';
 import { EnhancedFileUpload } from './EnhancedFileUpload';
 import { BatchUploadForm } from './BatchUploadForm';
+import { ProjectSelector } from './ProjectSelector';
+import { TagInput } from './TagInput';
 import { Textarea } from '@/components/ui/textarea';
 import { Loader2, Sparkles, Upload } from 'lucide-react';
 import { useFileUpload } from '@/hooks/useFileUpload';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Project } from '@/hooks/useProjects';
 
 interface EnhancedAnalysisFormProps {
   onAnalysisStart: (analysisId: string | string[]) => void;
@@ -16,6 +19,8 @@ export const EnhancedAnalysisForm: React.FC<EnhancedAnalysisFormProps> = ({
 }) => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [instruction, setInstruction] = useState('');
+  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const { uploadFile, uploadProgress, isUploading } = useFileUpload();
 
   const handleSingleSubmit = async (e: React.FormEvent) => {
@@ -54,9 +59,43 @@ export const EnhancedAnalysisForm: React.FC<EnhancedAnalysisFormProps> = ({
             isUploading={isUploading}
           />
 
+          <div className="space-y-6">
+            <h3 className="text-card-title">2. Organização dos Documentos</h3>
+            
+            <div className="grid gap-6 md:grid-cols-2">
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-card-title">
+                  Projeto (opcional)
+                </label>
+                <ProjectSelector
+                  value={selectedProject}
+                  onChange={setSelectedProject}
+                  placeholder="Selecionar projeto..."
+                />
+                <p className="text-xs text-subtle">
+                  Organize seus documentos por projetos para facilitar a gestão
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-card-title">
+                  Tags (opcional)
+                </label>
+                <TagInput
+                  value={selectedTags}
+                  onChange={setSelectedTags}
+                  placeholder="Adicionar tags..."
+                />
+                <p className="text-xs text-subtle">
+                  Adicione tags para categorizar e encontrar documentos facilmente
+                </p>
+              </div>
+            </div>
+          </div>
+
           <div className="space-y-4">
             <label className="block text-card-title">
-              2. Descreva a análise que você precisa
+              3. Descreva a análise que você precisa
             </label>
             <Textarea
               value={instruction}
