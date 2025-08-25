@@ -7,6 +7,12 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+// Webhooks do Make.com
+const WEBHOOKS = {
+  INGESTION: 'https://hook.us1.make.com/wnwlxeimcxne33gm1skn1twi4wp14cwb', // Para upload em lote
+  ANALYSIS: 'https://hook.us1.make.com/a2wf9rkk9gmwfmfv4jbhoak75b501igd'   // Para análise/busca RAG
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -20,7 +26,7 @@ serve(async (req) => {
     )
 
     if (req.method === 'POST') {
-      const { action, ...data } = await req.json()
+      const { action, flowType, ...data } = await req.json()
       
       if (action === 'upload') {
         const { fileName, fileSize, instruction } = data
@@ -73,9 +79,9 @@ serve(async (req) => {
       }
 
       if (action === 'process') {
-        const { analysisId, filePath } = data
+        const { analysisId, filePath, isBatchUpload = false } = data
         
-        console.log('Processing analysis:', analysisId)
+        console.log('Processing analysis:', analysisId, 'Batch upload:', isBatchUpload)
         
         // Update status to processing
         await supabase
@@ -103,21 +109,26 @@ serve(async (req) => {
           throw new Error('Failed to generate download URL')
         }
 
-        // Call Make.com webhook with the NEW URL
-        const makeWebhookUrl = 'https://hook.us1.make.com/a2wf9rkk9gmwfmfv4jbhoak75b501igd'
+        // Determine which webhook to call based on the flow type
+        const webhookUrl = isBatchUpload ? WEBHOOKS.INGESTION : WEBHOOKS.ANALYSIS
         
+        console.log(`Calling ${isBatchUpload ? 'INGESTION' : 'ANALYSIS'} webhook:`, webhookUrl)
+
         const webhookPayload = {
           analysisId: analysisId,
           fileName: analysisRecord.file_name,
           fileUrl: downloadData.signedUrl,
           instruction: analysisRecord.instruction,
-          callbackUrl: `${Deno.env.get('SUPABASE_URL')}/functions/v1/analyze-document`
+          callbackUrl: `${Deno.env.get('SUPABASE_URL')}/functions/v1/analyze-document`,
+          flowType: isBatchUpload ? 'ingestion' : 'analysis',
+          projectName: analysisRecord.project_name || null,
+          batchId: analysisRecord.batch_id || null
         }
 
         console.log('Calling Make.com webhook with payload:', webhookPayload)
 
         try {
-          const webhookResponse = await fetch(makeWebhookUrl, {
+          const webhookResponse = await fetch(webhookUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(webhookPayload)
@@ -127,7 +138,7 @@ serve(async (req) => {
             throw new Error(`Make.com webhook failed: ${webhookResponse.status}`)
           }
 
-          console.log('Make.com webhook called successfully')
+          console.log(`Make.com ${isBatchUpload ? 'INGESTION' : 'ANALYSIS'} webhook called successfully`)
 
         } catch (webhookError) {
           console.error('Make.com webhook error:', webhookError)
@@ -147,14 +158,62 @@ serve(async (req) => {
         return new Response(
           JSON.stringify({
             success: true,
-            message: 'Analysis started',
-            analysisId: analysisId
+            message: `${isBatchUpload ? 'Ingestão' : 'Análise'} started`,
+            analysisId: analysisId,
+            flowType: isBatchUpload ? 'ingestion' : 'analysis'
           }),
           { 
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
             status: 200 
           }
         )
+      }
+
+      if (action === 'semantic-search') {
+        const { query, userId, projectId } = data
+        
+        console.log('Processing semantic search query:', query)
+
+        // Call the ANALYSIS webhook for semantic search queries
+        const webhookPayload = {
+          query: query,
+          userId: userId,
+          projectId: projectId,
+          callbackUrl: `${Deno.env.get('SUPABASE_URL')}/functions/v1/analyze-document`,
+          flowType: 'semantic-search'
+        }
+
+        console.log('Calling ANALYSIS webhook for semantic search:', webhookPayload)
+
+        try {
+          const webhookResponse = await fetch(WEBHOOKS.ANALYSIS, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(webhookPayload)
+          })
+
+          if (!webhookResponse.ok) {
+            throw new Error(`Semantic search webhook failed: ${webhookResponse.status}`)
+          }
+
+          console.log('Semantic search webhook called successfully')
+
+          return new Response(
+            JSON.stringify({
+              success: true,
+              message: 'Busca semântica iniciada',
+              query: query
+            }),
+            { 
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+              status: 200 
+            }
+          )
+
+        } catch (webhookError) {
+          console.error('Semantic search webhook error:', webhookError)
+          throw new Error('Failed to call semantic search webhook')
+        }
       }
 
       if (action === 'status') {
@@ -181,9 +240,9 @@ serve(async (req) => {
 
     // Handle Make.com callback (webhook from Make.com with results)
     if (req.method === 'PUT') {
-      const { analysisId, result, error } = await req.json()
+      const { analysisId, result, error, flowType } = await req.json()
       
-      console.log('Received callback from Make.com for analysis:', analysisId)
+      console.log(`Received callback from Make.com for ${flowType || 'analysis'}:`, analysisId)
       
       if (error) {
         await supabase
