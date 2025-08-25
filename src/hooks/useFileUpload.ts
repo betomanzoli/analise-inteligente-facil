@@ -1,4 +1,3 @@
-
 import { useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useFileHash } from './useFileHash';
@@ -30,6 +29,7 @@ interface UploadOptions {
   projectName?: string;
   tags?: string[];
   allowDuplicate?: boolean;
+  isIngestion?: boolean;
 }
 
 export const useFileUpload = () => {
