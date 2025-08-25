@@ -28,7 +28,7 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
   const [newProjectDescription, setNewProjectDescription] = useState('');
 
   const { data: projects = [] } = useProjects();
-  const { mutate: createProject, isLoading: isCreating } = useCreateProject();
+  const { mutate: createProject, isPending: isCreating } = useCreateProject();
   const { toast } = useToast();
 
   const handleCreateProject = () => {
