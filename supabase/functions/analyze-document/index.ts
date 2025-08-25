@@ -103,7 +103,7 @@ serve(async (req) => {
           throw new Error('Failed to generate download URL')
         }
 
-        // Call Make.com webhook
+        // Call Make.com webhook with the NEW URL
         const makeWebhookUrl = 'https://hook.us1.make.com/a2wf9rkk9gmwfmfv4jbhoak75b501igd'
         
         const webhookPayload = {
