@@ -7,6 +7,8 @@ import { useAnalysisRecord } from '@/hooks/useAnalysisHistory';
 import { FormattedResult } from './FormattedResult';
 import { ResultExporter } from './ResultExporter';
 import { useToast } from '@/hooks/use-toast';
+import { useSemanticAnalysis } from '@/hooks/useSemanticAnalysis';
+import { useStaleAnalysisCleanup } from '@/hooks/useStaleAnalysisCleanup';
 
 interface EnhancedAnalysisResultProps {
   analysisId: string;
@@ -22,6 +24,10 @@ export const EnhancedAnalysisResult: React.FC<EnhancedAnalysisResultProps> = ({
   const { data: analysis, isLoading, error: queryError } = useAnalysisRecord(analysisId);
   const [timeoutWarning, setTimeoutWarning] = useState(false);
   const { toast } = useToast();
+  const { performAnalysis, isAnalyzing } = useSemanticAnalysis();
+  
+  // Inicializar limpeza automática de análises órfãs
+  useStaleAnalysisCleanup();
 
   // Check for timeout
   useEffect(() => {
@@ -84,7 +90,7 @@ export const EnhancedAnalysisResult: React.FC<EnhancedAnalysisResultProps> = ({
       case 'processing':
         return {
           icon: <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-500"></div>,
-          text: 'Processando documento',
+          text: 'Processando análise',
           color: 'text-blue-600',
           bgColor: 'bg-blue-50 border-blue-200'
         };
@@ -114,14 +120,25 @@ export const EnhancedAnalysisResult: React.FC<EnhancedAnalysisResultProps> = ({
 
   const statusConfig = getStatusConfig();
 
-  const handleRetry = () => {
+  const handleRetry = async () => {
     if (onRetry) {
       onRetry(analysisId);
+      setTimeoutWarning(false);
+    } else if (analysis.instruction && analysis.file_path === 'semantic-analysis') {
+      // Para análises semânticas, tentar novamente usando o hook
+      const newAnalysisId = await performAnalysis(analysis.instruction);
+      if (newAnalysisId) {
+        toast({
+          title: "Nova análise iniciada",
+          description: "Uma nova análise foi iniciada com sucesso.",
+        });
+        // Aqui você poderia redirecionar para a nova análise se necessário
+      }
       setTimeoutWarning(false);
     } else {
       toast({
         title: "Função não disponível",
-        description: "A função de retry não está disponível neste contexto.",
+        description: "A função de retry não está disponível para este tipo de análise.",
         variant: "destructive",
       });
     }
@@ -139,6 +156,8 @@ export const EnhancedAnalysisResult: React.FC<EnhancedAnalysisResultProps> = ({
     }
   };
 
+  const isSemanticAnalysis = analysis.file_path === 'semantic-analysis';
+
   return (
     <div className="space-y-4">
       <div className={`result-card animate-slide-up border ${statusConfig.bgColor}`}>
@@ -151,8 +170,13 @@ export const EnhancedAnalysisResult: React.FC<EnhancedAnalysisResultProps> = ({
               </h3>
               <div className="flex items-center space-x-2 text-sm text-subtle mt-1">
                 <FileText className="h-4 w-4" />
-                <span>{analysis.file_name}</span>
+                <span>{isSemanticAnalysis ? 'Análise IA' : analysis.file_name}</span>
               </div>
+              {analysis.instruction && (
+                <p className="text-xs text-muted-foreground mt-1 max-w-md truncate">
+                  {isSemanticAnalysis ? `Consulta: ${analysis.instruction}` : `Instrução: ${analysis.instruction}`}
+                </p>
+              )}
               <p className="text-xs text-muted-foreground mt-1">
                 Criado em {new Date(analysis.created_at).toLocaleString()}
               </p>
@@ -172,17 +196,16 @@ export const EnhancedAnalysisResult: React.FC<EnhancedAnalysisResultProps> = ({
                   Editar
                 </Button>
               )}
-              {onRetry && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleRetry}
-                  className="flex items-center gap-2"
-                >
-                  <RefreshCw className="h-4 w-4" />
-                  Tentar Novamente
-                </Button>
-              )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleRetry}
+                disabled={isAnalyzing}
+                className="flex items-center gap-2"
+              >
+                <RefreshCw className={`h-4 w-4 ${isAnalyzing ? 'animate-spin' : ''}`} />
+                Tentar Novamente
+              </Button>
             </div>
           )}
         </div>
@@ -193,16 +216,15 @@ export const EnhancedAnalysisResult: React.FC<EnhancedAnalysisResultProps> = ({
             <AlertTriangle className="h-4 w-4 text-amber-600" />
             <AlertDescription className="text-amber-800">
               O processamento está demorando mais que o esperado. Isso pode indicar um problema no servidor.
-              {onRetry && (
-                <Button
-                  variant="link"
-                  size="sm"
-                  onClick={handleRetry}
-                  className="ml-2 p-0 h-auto text-amber-700 underline"
-                >
-                  Tentar novamente
-                </Button>
-              )}
+              <Button
+                variant="link"
+                size="sm"
+                onClick={handleRetry}
+                disabled={isAnalyzing}
+                className="ml-2 p-0 h-auto text-amber-700 underline"
+              >
+                {isAnalyzing ? 'Tentando...' : 'Tentar novamente'}
+              </Button>
             </AlertDescription>
           </Alert>
         )}
@@ -214,7 +236,10 @@ export const EnhancedAnalysisResult: React.FC<EnhancedAnalysisResultProps> = ({
             <AlertDescription>
               <strong>Erro:</strong> {analysis.error_message}
               <div className="mt-2 text-sm">
-                Por favor, verifique se o arquivo está íntegro e tente novamente.
+                {isSemanticAnalysis 
+                  ? 'Verifique se há documentos na sua base de conhecimento e tente novamente.'
+                  : 'Por favor, verifique se o arquivo está íntegro e tente novamente.'
+                }
               </div>
             </AlertDescription>
           </Alert>
@@ -224,7 +249,7 @@ export const EnhancedAnalysisResult: React.FC<EnhancedAnalysisResultProps> = ({
         {(analysis.status === 'pending' || analysis.status === 'processing') && (
           <div className="mt-4">
             <div className="flex justify-between text-sm text-muted-foreground mb-2">
-              <span>Progresso da análise</span>
+              <span>{isSemanticAnalysis ? 'Progresso da análise IA' : 'Progresso da análise'}</span>
               <span>{analysis.status === 'processing' ? 'Em andamento...' : 'Na fila'}</span>
             </div>
             <div className="w-full bg-muted rounded-full h-2">
@@ -247,7 +272,7 @@ export const EnhancedAnalysisResult: React.FC<EnhancedAnalysisResultProps> = ({
           <FormattedResult content={analysis.result} />
           <ResultExporter 
             content={analysis.result}
-            fileName={analysis.file_name}
+            fileName={isSemanticAnalysis ? 'Análise IA' : analysis.file_name}
           />
         </div>
       )}

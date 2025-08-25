@@ -2,31 +2,36 @@
 import React, { useState } from 'react';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
-import { Sparkles, Brain, Zap, Lightbulb } from 'lucide-react';
+import { Sparkles, Brain, Zap, Lightbulb, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { useSemanticAnalysis } from '@/hooks/useSemanticAnalysis';
+import { ErrorHandler } from './ErrorHandler';
 
 interface AIAnalysisFormProps {
-  onAnalysisStart: (query: string) => void;
+  onAnalysisStart: (analysisId: string) => void;
 }
 
 export const AIAnalysisForm: React.FC<AIAnalysisFormProps> = ({
   onAnalysisStart
 }) => {
   const [query, setQuery] = useState('');
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const { performAnalysis, isAnalyzing, error, clearError } = useSemanticAnalysis();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!query.trim()) return;
+    if (!query.trim() || isAnalyzing) return;
 
-    setIsAnalyzing(true);
-    try {
-      await onAnalysisStart(query.trim());
-    } finally {
-      setIsAnalyzing(false);
+    const analysisId = await performAnalysis(query.trim());
+    if (analysisId) {
+      onAnalysisStart(analysisId);
+      setQuery(''); // Limpar o campo após sucesso
     }
+  };
+
+  const handleRetry = () => {
+    clearError();
   };
 
   const exampleQueries = [
@@ -53,6 +58,13 @@ export const AIAnalysisForm: React.FC<AIAnalysisFormProps> = ({
           Faça perguntas inteligentes sobre sua base de conhecimento
         </p>
       </div>
+
+      {error && (
+        <ErrorHandler
+          error={error}
+          onRetry={handleRetry}
+        />
+      )}
 
       <Card className="border-gradient-to-r from-purple-200 to-blue-200">
         <CardHeader>
@@ -90,7 +102,7 @@ export const AIAnalysisForm: React.FC<AIAnalysisFormProps> = ({
               >
                 {isAnalyzing ? (
                   <>
-                    <Brain className="h-4 w-4 mr-2 animate-pulse" />
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                     Analisando...
                   </>
                 ) : (

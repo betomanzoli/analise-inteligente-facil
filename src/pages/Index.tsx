@@ -11,7 +11,6 @@ import { useAuth } from '@/contexts/AuthContext';
 
 const Index = () => {
   const [currentAnalysisIds, setCurrentAnalysisIds] = useState<string[]>([]);
-  const [currentAnalysisQuery, setCurrentAnalysisQuery] = useState<string>('');
   const [showHistory, setShowHistory] = useState(false);
   const [activeTab, setActiveTab] = useState('ingestion');
   
@@ -23,12 +22,9 @@ const Index = () => {
     // Manter na aba de ingestão para mostrar o progresso
   };
 
-  const handleAnalysisStart = async (query: string) => {
-    setCurrentAnalysisQuery(query);
-    // TODO: Implementar chamada para o webhook de análise
-    // Por enquanto, vamos simular criando um ID temporário
-    const tempAnalysisId = `analysis-${Date.now()}`;
-    setCurrentAnalysisIds([tempAnalysisId]);
+  const handleAnalysisStart = (analysisId: string) => {
+    setCurrentAnalysisIds([analysisId]);
+    // Mudar para mostrar o resultado da análise
   };
 
   const handleSelectAnalysis = (analysisId: string) => {

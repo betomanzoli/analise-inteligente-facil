@@ -7,14 +7,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-// Webhooks do Make.com
-const WEBHOOKS = {
-  INGESTION: 'https://hook.us1.make.com/wnwlxeimcxne33gm1skn1twi4wp14cwb', // Para upload em lote
-  ANALYSIS: 'https://hook.us1.make.com/a2wf9rkk9gmwfmfv4jbhoak75b501igd'   // Para análise/busca RAG
-}
-
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
   }
@@ -22,270 +15,245 @@ serve(async (req) => {
   try {
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? ''
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    if (req.method === 'POST') {
-      const { action, flowType, ...data } = await req.json()
-      
-      if (action === 'upload') {
-        const { fileName, fileSize, instruction } = data
-        
-        console.log('Creating upload URL for:', fileName)
-        
-        // Create analysis record
-        const { data: analysisRecord, error: dbError } = await supabase
-          .from('analysis_records')
-          .insert({
-            file_name: fileName,
-            file_path: `documents/${Date.now()}-${fileName}`,
-            file_size: fileSize,
-            instruction: instruction,
-            status: 'pending'
-          })
-          .select()
-          .single()
+    const body = await req.json()
+    console.log('Received request body:', JSON.stringify(body, null, 2))
 
-        if (dbError) {
-          console.error('Database error:', dbError)
-          throw new Error('Failed to create analysis record')
+    const { action, analysis_id, query, user_id, contextDocuments } = body
+
+    // Validar parâmetros básicos
+    if (!action || !analysis_id) {
+      console.error('Missing required parameters:', { action, analysis_id })
+      return new Response(
+        JSON.stringify({ error: 'Missing action or analysis_id' }),
+        { 
+          status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
         }
-
-        // Generate signed upload URL
-        const { data: signedUrlData, error: signedUrlError } = await supabase.storage
-          .from('documents')
-          .createSignedUploadUrl(analysisRecord.file_path, {
-            upsert: false
-          })
-
-        if (signedUrlError) {
-          console.error('Signed URL error:', signedUrlError)
-          throw new Error('Failed to generate upload URL')
-        }
-
-        return new Response(
-          JSON.stringify({
-            success: true,
-            uploadUrl: signedUrlData.signedUrl,
-            token: signedUrlData.token,
-            path: signedUrlData.path,
-            analysisId: analysisRecord.id
-          }),
-          { 
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-            status: 200 
-          }
-        )
-      }
-
-      if (action === 'process') {
-        const { analysisId, filePath, isBatchUpload = false } = data
-        
-        console.log('Processing analysis:', analysisId, 'Batch upload:', isBatchUpload)
-        
-        // Update status to processing
-        await supabase
-          .from('analysis_records')
-          .update({ status: 'processing' })
-          .eq('id', analysisId)
-
-        // Get analysis record details
-        const { data: analysisRecord } = await supabase
-          .from('analysis_records')
-          .select('*')
-          .eq('id', analysisId)
-          .single()
-
-        if (!analysisRecord) {
-          throw new Error('Analysis record not found')
-        }
-
-        // Get download URL for the uploaded file
-        const { data: downloadData } = await supabase.storage
-          .from('documents')
-          .createSignedUrl(filePath, 3600) // 1 hour expiry
-
-        if (!downloadData?.signedUrl) {
-          throw new Error('Failed to generate download URL')
-        }
-
-        // Determine which webhook to call based on the flow type
-        const webhookUrl = isBatchUpload ? WEBHOOKS.INGESTION : WEBHOOKS.ANALYSIS
-        
-        console.log(`Calling ${isBatchUpload ? 'INGESTION' : 'ANALYSIS'} webhook:`, webhookUrl)
-
-        const webhookPayload = {
-          analysisId: analysisId,
-          fileName: analysisRecord.file_name,
-          fileUrl: downloadData.signedUrl,
-          instruction: analysisRecord.instruction,
-          callbackUrl: `${Deno.env.get('SUPABASE_URL')}/functions/v1/analyze-document`,
-          flowType: isBatchUpload ? 'ingestion' : 'analysis',
-          projectName: analysisRecord.project_name || null,
-          batchId: analysisRecord.batch_id || null
-        }
-
-        console.log('Calling Make.com webhook with payload:', webhookPayload)
-
-        try {
-          const webhookResponse = await fetch(webhookUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(webhookPayload)
-          })
-
-          if (!webhookResponse.ok) {
-            throw new Error(`Make.com webhook failed: ${webhookResponse.status}`)
-          }
-
-          console.log(`Make.com ${isBatchUpload ? 'INGESTION' : 'ANALYSIS'} webhook called successfully`)
-
-        } catch (webhookError) {
-          console.error('Make.com webhook error:', webhookError)
-          
-          // Update status to error if webhook fails
-          await supabase
-            .from('analysis_records')
-            .update({ 
-              status: 'error',
-              error_message: `Webhook error: ${webhookError.message}`
-            })
-            .eq('id', analysisId)
-
-          throw new Error('Failed to call Make.com webhook')
-        }
-
-        return new Response(
-          JSON.stringify({
-            success: true,
-            message: `${isBatchUpload ? 'Ingestão' : 'Análise'} started`,
-            analysisId: analysisId,
-            flowType: isBatchUpload ? 'ingestion' : 'analysis'
-          }),
-          { 
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-            status: 200 
-          }
-        )
-      }
-
-      if (action === 'semantic-search') {
-        const { query, userId, projectId } = data
-        
-        console.log('Processing semantic search query:', query)
-
-        // Call the ANALYSIS webhook for semantic search queries
-        const webhookPayload = {
-          query: query,
-          userId: userId,
-          projectId: projectId,
-          callbackUrl: `${Deno.env.get('SUPABASE_URL')}/functions/v1/analyze-document`,
-          flowType: 'semantic-search'
-        }
-
-        console.log('Calling ANALYSIS webhook for semantic search:', webhookPayload)
-
-        try {
-          const webhookResponse = await fetch(WEBHOOKS.ANALYSIS, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(webhookPayload)
-          })
-
-          if (!webhookResponse.ok) {
-            throw new Error(`Semantic search webhook failed: ${webhookResponse.status}`)
-          }
-
-          console.log('Semantic search webhook called successfully')
-
-          return new Response(
-            JSON.stringify({
-              success: true,
-              message: 'Busca semântica iniciada',
-              query: query
-            }),
-            { 
-              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-              status: 200 
-            }
-          )
-
-        } catch (webhookError) {
-          console.error('Semantic search webhook error:', webhookError)
-          throw new Error('Failed to call semantic search webhook')
-        }
-      }
-
-      if (action === 'status') {
-        const { analysisId } = data
-        
-        const { data: analysisRecord } = await supabase
-          .from('analysis_records')
-          .select('*')
-          .eq('id', analysisId)
-          .single()
-
-        return new Response(
-          JSON.stringify({
-            success: true,
-            analysis: analysisRecord
-          }),
-          { 
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-            status: 200 
-          }
-        )
-      }
+      )
     }
 
-    // Handle Make.com callback (webhook from Make.com with results)
-    if (req.method === 'PUT') {
-      const { analysisId, result, error, flowType } = await req.json()
+    // Roteamento baseado na ação
+    if (action === 'process') {
+      // INGESTÃO: Chamar webhook do Make para processamento de documentos
+      console.log('Processing ingestion for analysis:', analysis_id)
       
-      console.log(`Received callback from Make.com for ${flowType || 'analysis'}:`, analysisId)
-      
-      if (error) {
-        await supabase
-          .from('analysis_records')
-          .update({ 
-            status: 'error',
-            error_message: error
-          })
-          .eq('id', analysisId)
-      } else {
-        await supabase
-          .from('analysis_records')
-          .update({ 
-            status: 'completed',
-            result: result
-          })
-          .eq('id', analysisId)
+      const { file_path, file_name, instruction, project_name, isBatchUpload } = body
+
+      if (!file_path || !file_name) {
+        console.error('Missing file parameters for ingestion')
+        return new Response(
+          JSON.stringify({ error: 'Missing file_path or file_name for ingestion' }),
+          { 
+            status: 400, 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          }
+        )
       }
 
+      // Chamar webhook do Make para ingestão
+      const makeWebhookUrl = 'https://hook.eu2.make.com/oi8bg37akj7fp2wn2ugu91bj7fex221a'
+      
+      const webhookPayload = {
+        analysis_id,
+        file_path,
+        file_name,
+        instruction: instruction || 'Indexar documento para busca semântica',
+        user_id,
+        project_name,
+        is_batch_upload: isBatchUpload || false,
+        action: 'INGESTION'
+      }
+
+      console.log('Calling Make webhook for ingestion:', webhookPayload)
+
+      const makeResponse = await fetch(makeWebhookUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(webhookPayload),
+      })
+
+      if (!makeResponse.ok) {
+        console.error('Make webhook failed:', makeResponse.status, makeResponse.statusText)
+        
+        // Atualizar registro com erro
+        await supabase
+          .from('analysis_records')
+          .update({
+            status: 'error',
+            error_message: `Falha na comunicação com o webhook: ${makeResponse.statusText}`,
+            updated_at: new Date().toISOString(),
+            processing_timeout: null
+          })
+          .eq('id', analysis_id)
+
+        throw new Error('Webhook de ingestão falhou')
+      }
+
+      console.log('Make webhook called successfully for ingestion')
+
       return new Response(
-        JSON.stringify({ success: true }),
+        JSON.stringify({ 
+          success: true, 
+          message: 'Ingestion started successfully',
+          analysis_id 
+        }),
         { 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           status: 200 
         }
       )
+
+    } else if (action === 'semantic-search') {
+      // ANÁLISE IA: Realizar busca semântica e análise
+      console.log('Processing semantic search for analysis:', analysis_id)
+      
+      if (!query) {
+        console.error('Missing query for semantic search')
+        return new Response(
+          JSON.stringify({ error: 'Missing query for semantic search' }),
+          { 
+            status: 400, 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          }
+        )
+      }
+
+      // Realizar busca semântica
+      const searchResponse = await supabase.functions.invoke('semantic-search', {
+        body: {
+          query: query,
+          matchThreshold: 0.6,
+          matchCount: 10,
+          userId: user_id
+        }
+      })
+
+      if (searchResponse.error) {
+        console.error('Semantic search failed:', searchResponse.error)
+        
+        // Atualizar registro com erro
+        await supabase
+          .from('analysis_records')
+          .update({
+            status: 'error',
+            error_message: `Falha na busca semântica: ${searchResponse.error.message}`,
+            updated_at: new Date().toISOString(),
+            processing_timeout: null
+          })
+          .eq('id', analysis_id)
+
+        throw new Error('Busca semântica falhou')
+      }
+
+      const searchResults = searchResponse.data?.results || []
+      console.log(`Found ${searchResults.length} relevant documents`)
+
+      if (searchResults.length === 0) {
+        // Atualizar registro indicando que não foram encontrados documentos
+        await supabase
+          .from('analysis_records')
+          .update({
+            status: 'completed',
+            result: 'Não foram encontrados documentos relevantes para sua consulta. Verifique se há documentos na sua base de conhecimento que possam responder a esta pergunta.',
+            updated_at: new Date().toISOString(),
+            processing_timeout: null
+          })
+          .eq('id', analysis_id)
+
+        return new Response(
+          JSON.stringify({ 
+            success: true, 
+            message: 'No relevant documents found',
+            analysis_id,
+            results: []
+          }),
+          { 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 200 
+          }
+        )
+      }
+
+      // Chamar webhook do Make para análise IA
+      const analysisWebhookUrl = 'https://hook.eu2.make.com/2rwkvbsd61j7f72dbet2mu4tpd7wwlrm'
+      
+      const analysisPayload = {
+        analysis_id,
+        query,
+        search_results: searchResults,
+        user_id,
+        context_documents: contextDocuments || [],
+        action: 'ANALYSIS'
+      }
+
+      console.log('Calling Make webhook for AI analysis:', analysisPayload)
+
+      const analysisResponse = await fetch(analysisWebhookUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(analysisPayload),
+      })
+
+      if (!analysisResponse.ok) {
+        console.error('Analysis webhook failed:', analysisResponse.status, analysisResponse.statusText)
+        
+        // Atualizar registro com erro
+        await supabase
+          .from('analysis_records')
+          .update({
+            status: 'error',
+            error_message: `Falha na comunicação com o webhook de análise: ${analysisResponse.statusText}`,
+            updated_at: new Date().toISOString(),
+            processing_timeout: null
+          })
+          .eq('id', analysis_id)
+
+        throw new Error('Webhook de análise falhou')
+      }
+
+      console.log('Analysis webhook called successfully')
+
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          message: 'Analysis started successfully',
+          analysis_id,
+          results: searchResults
+        }),
+        { 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 200 
+        }
+      )
+
+    } else {
+      console.error('Unknown action:', action)
+      return new Response(
+        JSON.stringify({ error: `Unknown action: ${action}` }),
+        { 
+          status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      )
     }
 
-    return new Response('Method not allowed', { 
-      status: 405,
-      headers: corsHeaders 
-    })
-
   } catch (error) {
-    console.error('Function error:', error)
+    console.error('Error in analyze-document function:', error)
     return new Response(
       JSON.stringify({ 
-        success: false, 
-        error: error.message 
+        error: 'Internal server error',
+        details: error.message 
       }),
       { 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 500 
+        status: 500, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
       }
     )
   }
