@@ -124,7 +124,7 @@ export const EnhancedAnalysisResult: React.FC<EnhancedAnalysisResultProps> = ({
     if (onRetry) {
       onRetry(analysisId);
       setTimeoutWarning(false);
-    } else if (analysis.instruction && analysis.file_path === 'semantic-analysis') {
+    } else if (analysis.instruction && isSemanticAnalysis(analysis)) {
       // Para análises semânticas, tentar novamente usando o hook
       const newAnalysisId = await performAnalysis(analysis.instruction);
       if (newAnalysisId) {
@@ -156,7 +156,12 @@ export const EnhancedAnalysisResult: React.FC<EnhancedAnalysisResultProps> = ({
     }
   };
 
-  const isSemanticAnalysis = analysis.file_path === 'semantic-analysis';
+  // Função para determinar se é uma análise semântica
+  const isSemanticAnalysis = (analysis: any) => {
+    return analysis.file_name?.startsWith('Análise IA:') || 
+           analysis.instruction?.length > 50 || // Instruções longas geralmente são consultas semânticas
+           !analysis.file_name?.includes('.');  // Análises semânticas não têm extensão de arquivo
+  };
 
   return (
     <div className="space-y-4">
@@ -170,11 +175,11 @@ export const EnhancedAnalysisResult: React.FC<EnhancedAnalysisResultProps> = ({
               </h3>
               <div className="flex items-center space-x-2 text-sm text-subtle mt-1">
                 <FileText className="h-4 w-4" />
-                <span>{isSemanticAnalysis ? 'Análise IA' : analysis.file_name}</span>
+                <span>{isSemanticAnalysis(analysis) ? 'Análise IA' : analysis.file_name}</span>
               </div>
               {analysis.instruction && (
                 <p className="text-xs text-muted-foreground mt-1 max-w-md truncate">
-                  {isSemanticAnalysis ? `Consulta: ${analysis.instruction}` : `Instrução: ${analysis.instruction}`}
+                  {isSemanticAnalysis(analysis) ? `Consulta: ${analysis.instruction}` : `Instrução: ${analysis.instruction}`}
                 </p>
               )}
               <p className="text-xs text-muted-foreground mt-1">
@@ -236,7 +241,7 @@ export const EnhancedAnalysisResult: React.FC<EnhancedAnalysisResultProps> = ({
             <AlertDescription>
               <strong>Erro:</strong> {analysis.error_message}
               <div className="mt-2 text-sm">
-                {isSemanticAnalysis 
+                {isSemanticAnalysis(analysis) 
                   ? 'Verifique se há documentos na sua base de conhecimento e tente novamente.'
                   : 'Por favor, verifique se o arquivo está íntegro e tente novamente.'
                 }
@@ -249,7 +254,7 @@ export const EnhancedAnalysisResult: React.FC<EnhancedAnalysisResultProps> = ({
         {(analysis.status === 'pending' || analysis.status === 'processing') && (
           <div className="mt-4">
             <div className="flex justify-between text-sm text-muted-foreground mb-2">
-              <span>{isSemanticAnalysis ? 'Progresso da análise IA' : 'Progresso da análise'}</span>
+              <span>{isSemanticAnalysis(analysis) ? 'Progresso da análise IA' : 'Progresso da análise'}</span>
               <span>{analysis.status === 'processing' ? 'Em andamento...' : 'Na fila'}</span>
             </div>
             <div className="w-full bg-muted rounded-full h-2">
@@ -272,7 +277,7 @@ export const EnhancedAnalysisResult: React.FC<EnhancedAnalysisResultProps> = ({
           <FormattedResult content={analysis.result} />
           <ResultExporter 
             content={analysis.result}
-            fileName={isSemanticAnalysis ? 'Análise IA' : analysis.file_name}
+            fileName={isSemanticAnalysis(analysis) ? 'Análise IA' : analysis.file_name}
           />
         </div>
       )}

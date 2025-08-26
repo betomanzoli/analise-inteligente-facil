@@ -17,7 +17,7 @@ export const useStaleAnalysisCleanup = () => {
         return;
       }
 
-      if (data.updated_count > 0) {
+      if (data && data.updated_count > 0) {
         console.log(`Limpeza concluída: ${data.updated_count} análises órfãs foram marcadas como erro`);
         
         toast({
@@ -27,18 +27,24 @@ export const useStaleAnalysisCleanup = () => {
       }
     } catch (error) {
       console.error('Falha na limpeza de análises órfãs:', error);
+      // Não mostrar toast de erro para não incomodar o usuário com erros de background
     }
   }, [toast]);
 
   // Executar limpeza periodicamente
   useEffect(() => {
-    // Executar uma vez ao carregar
-    cleanupStaleAnalyses();
+    // Executar uma vez ao carregar (com delay para evitar múltiplas execuções)
+    const initialTimeout = setTimeout(() => {
+      cleanupStaleAnalyses();
+    }, 2000);
     
     // Configurar execução periódica (a cada 5 minutos)
     const interval = setInterval(cleanupStaleAnalyses, 5 * 60 * 1000);
     
-    return () => clearInterval(interval);
+    return () => {
+      clearTimeout(initialTimeout);
+      clearInterval(interval);
+    };
   }, [cleanupStaleAnalyses]);
 
   return {

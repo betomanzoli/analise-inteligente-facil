@@ -30,10 +30,10 @@ export const useSemanticAnalysis = () => {
 
       // Criar registro de análise para tracking
       const analysisData = {
-        file_name: `Análise IA: ${query.substring(0, 50)}...`,
+        file_name: `Análise IA: ${query.substring(0, 50)}${query.length > 50 ? '...' : ''}`,
         file_path: 'semantic-analysis',
         file_size: 0,
-        file_hash: `semantic-${Date.now()}-${Math.random()}`,
+        file_hash: `semantic-${Date.now()}-${Math.random().toString(36).substring(7)}`,
         instruction: query,
         status: 'processing' as const,
         user_id: user?.id || null,
@@ -64,12 +64,14 @@ export const useSemanticAnalysis = () => {
       });
 
       if (functionError) {
+        console.error('Erro na função de análise:', functionError);
+        
         // Atualizar registro com erro
         await supabase
           .from('analysis_records')
           .update({
             status: 'error',
-            error_message: functionError.message,
+            error_message: functionError.message || 'Erro desconhecido na análise',
             updated_at: new Date().toISOString(),
             processing_timeout: null
           })

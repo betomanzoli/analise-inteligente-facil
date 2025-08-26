@@ -21,59 +21,28 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    // Find analyses that are stuck in pending/processing and have exceeded timeout
+    // Find analyses that are stuck in pending/processing state for more than 15 minutes
+    const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+
     const { data: staleAnalyses, error: selectError } = await supabase
       .from('analysis_records')
-      .select('id, file_name, created_at, processing_timeout')
+      .select('id, file_name, created_at, status')
       .in('status', ['pending', 'processing'])
-      .lt('processing_timeout', new Date().toISOString());
+      .lt('created_at', fifteenMinutesAgo);
 
     if (selectError) {
       console.error('Error finding stale analyses:', selectError);
-      return new Response(
-        JSON.stringify({ error: 'Failed to find stale analyses' }),
-        { 
-          status: 500, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-        }
-      );
+      throw new Error('Failed to query stale analyses');
     }
 
     console.log(`Found ${staleAnalyses?.length || 0} stale analyses`);
 
-    if (staleAnalyses && staleAnalyses.length > 0) {
-      const staleIds = staleAnalyses.map(a => a.id);
-      
-      // Update stale analyses to error status
-      const { data: updatedAnalyses, error: updateError } = await supabase
-        .from('analysis_records')
-        .update({
-          status: 'error',
-          error_message: 'Análise expirou por timeout. O processamento demorou mais que o esperado.',
-          updated_at: new Date().toISOString(),
-          processing_timeout: null
-        })
-        .in('id', staleIds)
-        .select();
-
-      if (updateError) {
-        console.error('Error updating stale analyses:', updateError);
-        return new Response(
-          JSON.stringify({ error: 'Failed to update stale analyses' }),
-          { 
-            status: 500, 
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-          }
-        );
-      }
-
-      console.log(`Updated ${updatedAnalyses?.length || 0} stale analyses to error status`);
-
+    if (!staleAnalyses || staleAnalyses.length === 0) {
       return new Response(
         JSON.stringify({ 
           success: true, 
-          updated_count: updatedAnalyses?.length || 0,
-          updated_analyses: updatedAnalyses?.map(a => ({ id: a.id, file_name: a.file_name }))
+          message: 'No stale analyses found',
+          updated_count: 0 
         }),
         { 
           status: 200, 
@@ -82,11 +51,32 @@ serve(async (req) => {
       );
     }
 
+    // Update stale analyses to error status
+    const staleIds = staleAnalyses.map(analysis => analysis.id);
+    
+    const { error: updateError } = await supabase
+      .from('analysis_records')
+      .update({
+        status: 'error',
+        error_message: 'Processamento interrompido por timeout. Tente novamente.',
+        updated_at: new Date().toISOString(),
+        processing_timeout: null
+      })
+      .in('id', staleIds);
+
+    if (updateError) {
+      console.error('Error updating stale analyses:', updateError);
+      throw new Error('Failed to update stale analyses');
+    }
+
+    console.log(`Successfully marked ${staleAnalyses.length} analyses as failed`);
+
     return new Response(
       JSON.stringify({ 
         success: true, 
-        updated_count: 0,
-        message: 'No stale analyses found'
+        message: `Marked ${staleAnalyses.length} stale analyses as failed`,
+        updated_count: staleAnalyses.length,
+        updated_ids: staleIds
       }),
       { 
         status: 200, 
@@ -95,7 +85,7 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('Unexpected error in cleanup:', error);
+    console.error('Unexpected error in cleanup function:', error);
     return new Response(
       JSON.stringify({ 
         error: 'Internal server error',
