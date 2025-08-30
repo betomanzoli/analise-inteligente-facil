@@ -1,286 +1,193 @@
 
 import React, { useState, useEffect } from 'react';
-import { Clock, CheckCircle, XCircle, AlertTriangle, RefreshCw, Edit3, FileText } from 'lucide-react';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Button } from '@/components/ui/button';
-import { useAnalysisRecord } from '@/hooks/useAnalysisHistory';
+import { AnalysisRecord } from '@/hooks/useAnalysisHistory';
 import { FormattedResult } from './FormattedResult';
+import { NativeProcessingStatus } from './NativeProcessingStatus';
+import { DetailedProgressIndicator } from './DetailedProgressIndicator';
 import { ResultExporter } from './ResultExporter';
-import { useToast } from '@/hooks/use-toast';
-import { useSemanticAnalysis } from '@/hooks/useSemanticAnalysis';
-import { useStaleAnalysisCleanup } from '@/hooks/useStaleAnalysisCleanup';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { 
+  FileText, 
+  Clock, 
+  CheckCircle, 
+  AlertCircle, 
+  RefreshCw, 
+  Sparkles,
+  Zap,
+  Eye
+} from 'lucide-react';
+import { formatDistanceToNow } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import { supabase } from '@/integrations/supabase/client';
 
 interface EnhancedAnalysisResultProps {
-  analysisId: string;
-  onRetry?: (analysisId: string) => void;
-  onEdit?: (analysisId: string) => void;
+  analysis: AnalysisRecord;
+  onRefresh: () => void;
 }
 
 export const EnhancedAnalysisResult: React.FC<EnhancedAnalysisResultProps> = ({
-  analysisId,
-  onRetry,
-  onEdit
+  analysis,
+  onRefresh,
 }) => {
-  const { data: analysis, isLoading, error: queryError } = useAnalysisRecord(analysisId);
-  const [timeoutWarning, setTimeoutWarning] = useState(false);
-  const { toast } = useToast();
-  const { performAnalysis, isAnalyzing } = useSemanticAnalysis();
-  
-  // Inicializar limpeza automática de análises órfãs
-  useStaleAnalysisCleanup();
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(false);
 
-  // Check for timeout
+  // Auto-refresh for processing analyses
   useEffect(() => {
-    if (analysis?.status === 'pending' || analysis?.status === 'processing') {
-      const timeout = setTimeout(() => {
-        setTimeoutWarning(true);
-      }, 5 * 60 * 1000); // 5 minutes
+    if (analysis.status === 'processing' || analysis.status === 'text_extracted') {
+      setAutoRefreshEnabled(true);
+      const interval = setInterval(() => {
+        onRefresh();
+      }, 3000); // Refresh every 3 seconds
 
-      return () => clearTimeout(timeout);
+      return () => {
+        clearInterval(interval);
+        setAutoRefreshEnabled(false);
+      };
     }
-  }, [analysis?.status]);
+  }, [analysis.status, onRefresh]);
 
-  // Auto-check for stale processes
-  useEffect(() => {
-    if (analysis && (analysis.status === 'pending' || analysis.status === 'processing')) {
-      const createdAt = new Date(analysis.created_at).getTime();
-      const now = Date.now();
-      const minutesElapsed = (now - createdAt) / (1000 * 60);
-      
-      if (minutesElapsed > 10) {
-        setTimeoutWarning(true);
-      }
-    }
-  }, [analysis]);
+  const handleManualRefresh = async () => {
+    setIsRefreshing(true);
+    await new Promise(resolve => setTimeout(resolve, 1000)); // Visual feedback
+    onRefresh();
+    setIsRefreshing(false);
+  };
 
-  if (isLoading) {
-    return (
-      <div className="result-card animate-pulse">
-        <div className="flex items-center space-x-3">
-          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
-          <div>
-            <div className="h-4 bg-muted rounded w-32 mb-2"></div>
-            <div className="h-3 bg-muted rounded w-24"></div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (queryError || !analysis) {
-    return (
-      <Alert variant="destructive">
-        <XCircle className="h-4 w-4" />
-        <AlertDescription>
-          Erro ao carregar resultado da análise. Tente recarregar a página.
-        </AlertDescription>
-      </Alert>
-    );
-  }
-
-  const getStatusConfig = () => {
+  const getStatusIcon = () => {
     switch (analysis.status) {
-      case 'pending':
-        return {
-          icon: <Clock className="h-5 w-5 text-amber-500" />,
-          text: 'Aguardando processamento',
-          color: 'text-amber-600',
-          bgColor: 'bg-amber-50 border-amber-200'
-        };
-      case 'processing':
-        return {
-          icon: <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-500"></div>,
-          text: 'Processando análise',
-          color: 'text-blue-600',
-          bgColor: 'bg-blue-50 border-blue-200'
-        };
       case 'completed':
-        return {
-          icon: <CheckCircle className="h-5 w-5 text-green-500" />,
-          text: 'Análise concluída',
-          color: 'text-green-600',
-          bgColor: 'bg-green-50 border-green-200'
-        };
+        return <CheckCircle className="h-5 w-5 text-green-500" />;
+      case 'processing':
+        return <Clock className="h-5 w-5 text-blue-500 animate-pulse" />;
+      case 'text_extracted':
+        return <Eye className="h-5 w-5 text-yellow-500" />;
       case 'error':
-        return {
-          icon: <XCircle className="h-5 w-5 text-red-500" />,
-          text: 'Erro no processamento',
-          color: 'text-red-600',
-          bgColor: 'bg-red-50 border-red-200'
-        };
+        return <AlertCircle className="h-5 w-5 text-red-500" />;
       default:
-        return {
-          icon: <AlertTriangle className="h-5 w-5 text-gray-500" />,
-          text: 'Status desconhecido',
-          color: 'text-gray-600',
-          bgColor: 'bg-gray-50 border-gray-200'
-        };
+        return <FileText className="h-5 w-5 text-gray-500" />;
     }
   };
 
-  const statusConfig = getStatusConfig();
-
-  const handleRetry = async () => {
-    if (onRetry) {
-      onRetry(analysisId);
-      setTimeoutWarning(false);
-    } else if (analysis.instruction && isSemanticAnalysis(analysis)) {
-      // Para análises semânticas, tentar novamente usando o hook
-      const newAnalysisId = await performAnalysis(analysis.instruction);
-      if (newAnalysisId) {
-        toast({
-          title: "Nova análise iniciada",
-          description: "Uma nova análise foi iniciada com sucesso.",
-        });
-        // Aqui você poderia redirecionar para a nova análise se necessário
-      }
-      setTimeoutWarning(false);
-    } else {
-      toast({
-        title: "Função não disponível",
-        description: "A função de retry não está disponível para este tipo de análise.",
-        variant: "destructive",
-      });
+  const getStatusColor = () => {
+    switch (analysis.status) {
+      case 'completed':
+        return 'bg-green-100 text-green-800';
+      case 'processing':
+        return 'bg-blue-100 text-blue-800';
+      case 'text_extracted':
+        return 'bg-yellow-100 text-yellow-800';
+      case 'error':
+        return 'bg-red-100 text-red-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
     }
   };
 
-  const handleEdit = () => {
-    if (onEdit) {
-      onEdit(analysisId);
-    } else {
-      toast({
-        title: "Função não disponível",
-        description: "A função de edição não está disponível neste contexto.",
-        variant: "destructive",
-      });
-    }
-  };
-
-  // Função para determinar se é uma análise semântica
-  const isSemanticAnalysis = (analysis: any) => {
-    return analysis.file_name?.startsWith('Análise IA:') || 
-           analysis.instruction?.length > 50 || // Instruções longas geralmente são consultas semânticas
-           !analysis.file_name?.includes('.');  // Análises semânticas não têm extensão de arquivo
-  };
+  const isNativeProcessing = analysis.file_path !== 'semantic-analysis';
+  const isAIAnalysis = analysis.file_path === 'semantic-analysis';
 
   return (
-    <div className="space-y-4">
-      <div className={`result-card animate-slide-up border ${statusConfig.bgColor}`}>
+    <Card className="w-full">
+      <CardHeader className="space-y-4">
         <div className="flex items-start justify-between">
-          <div className="flex items-center space-x-3">
-            {statusConfig.icon}
-            <div>
-              <h3 className={`font-medium ${statusConfig.color}`}>
-                {statusConfig.text}
-              </h3>
-              <div className="flex items-center space-x-2 text-sm text-subtle mt-1">
-                <FileText className="h-4 w-4" />
-                <span>{isSemanticAnalysis(analysis) ? 'Análise IA' : analysis.file_name}</span>
+          <div className="space-y-2 flex-1">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                {isNativeProcessing ? (
+                  <Zap className="h-5 w-5 text-primary" />
+                ) : (
+                  <Sparkles className="h-5 w-5 text-primary" />
+                )}
+                <CardTitle className="text-lg">
+                  {analysis.file_name}
+                </CardTitle>
               </div>
-              {analysis.instruction && (
-                <p className="text-xs text-muted-foreground mt-1 max-w-md truncate">
-                  {isSemanticAnalysis(analysis) ? `Consulta: ${analysis.instruction}` : `Instrução: ${analysis.instruction}`}
-                </p>
+              <Badge className={getStatusColor()}>
+                <div className="flex items-center gap-1">
+                  {getStatusIcon()}
+                  {analysis.status}
+                </div>
+              </Badge>
+            </div>
+            
+            {isAIAnalysis && (
+              <div className="text-sm text-muted-foreground bg-muted/50 p-2 rounded">
+                <strong>Consulta:</strong> {analysis.instruction}
+              </div>
+            )}
+            
+            <div className="flex items-center gap-4 text-sm text-muted-foreground">
+              <span>
+                {formatDistanceToNow(new Date(analysis.created_at), {
+                  addSuffix: true,
+                  locale: ptBR,
+                })}
+              </span>
+              {!isAIAnalysis && (
+                <span>{Math.round(analysis.file_size / 1024)} KB</span>
               )}
-              <p className="text-xs text-muted-foreground mt-1">
-                Criado em {new Date(analysis.created_at).toLocaleString()}
-              </p>
+              {analysis.project_name && (
+                <Badge variant="outline" className="text-xs">
+                  {analysis.project_name}
+                </Badge>
+              )}
             </div>
           </div>
-
-          {(analysis.status === 'error' || timeoutWarning) && (
-            <div className="flex gap-2">
-              {onEdit && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleEdit}
-                  className="flex items-center gap-2"
-                >
-                  <Edit3 className="h-4 w-4" />
-                  Editar
-                </Button>
-              )}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleRetry}
-                disabled={isAnalyzing}
-                className="flex items-center gap-2"
-              >
-                <RefreshCw className={`h-4 w-4 ${isAnalyzing ? 'animate-spin' : ''}`} />
-                Tentar Novamente
-              </Button>
-            </div>
-          )}
+          
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleManualRefresh}
+              disabled={isRefreshing}
+              className="flex items-center gap-1"
+            >
+              <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+              {autoRefreshEnabled ? 'Auto' : 'Refresh'}
+            </Button>
+          </div>
         </div>
-
-        {/* Timeout Warning */}
-        {timeoutWarning && analysis.status !== 'error' && analysis.status !== 'completed' && (
-          <Alert className="mt-4 bg-amber-50 border-amber-200">
-            <AlertTriangle className="h-4 w-4 text-amber-600" />
-            <AlertDescription className="text-amber-800">
-              O processamento está demorando mais que o esperado. Isso pode indicar um problema no servidor.
-              <Button
-                variant="link"
-                size="sm"
-                onClick={handleRetry}
-                disabled={isAnalyzing}
-                className="ml-2 p-0 h-auto text-amber-700 underline"
-              >
-                {isAnalyzing ? 'Tentando...' : 'Tentar novamente'}
-              </Button>
-            </AlertDescription>
-          </Alert>
+        
+        {isNativeProcessing && (
+          <NativeProcessingStatus analysis={analysis} />
         )}
+      </CardHeader>
 
-        {/* Error Message */}
-        {analysis.status === 'error' && analysis.error_message && (
-          <Alert variant="destructive" className="mt-4">
-            <XCircle className="h-4 w-4" />
-            <AlertDescription>
-              <strong>Erro:</strong> {analysis.error_message}
-              <div className="mt-2 text-sm">
-                {isSemanticAnalysis(analysis) 
-                  ? 'Verifique se há documentos na sua base de conhecimento e tente novamente.'
-                  : 'Por favor, verifique se o arquivo está íntegro e tente novamente.'
-                }
-              </div>
-            </AlertDescription>
-          </Alert>
-        )}
-
-        {/* Processing Progress */}
-        {(analysis.status === 'pending' || analysis.status === 'processing') && (
-          <div className="mt-4">
-            <div className="flex justify-between text-sm text-muted-foreground mb-2">
-              <span>{isSemanticAnalysis(analysis) ? 'Progresso da análise IA' : 'Progresso da análise'}</span>
-              <span>{analysis.status === 'processing' ? 'Em andamento...' : 'Na fila'}</span>
-            </div>
-            <div className="w-full bg-muted rounded-full h-2">
-              <div 
-                className={`h-2 rounded-full transition-all duration-500 ${
-                  analysis.status === 'processing' ? 'bg-blue-500 animate-pulse' : 'bg-amber-400'
-                }`}
-                style={{ 
-                  width: analysis.status === 'processing' ? '60%' : '30%' 
-                }}
-              />
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Analysis Result */}
-      {analysis.status === 'completed' && analysis.result && (
-        <div className="space-y-4">
-          <FormattedResult content={analysis.result} />
-          <ResultExporter 
-            content={analysis.result}
-            fileName={isSemanticAnalysis(analysis) ? 'Análise IA' : analysis.file_name}
+      <CardContent className="space-y-6">
+        {(analysis.status === 'processing' || analysis.status === 'text_extracted') && (
+          <DetailedProgressIndicator 
+            status={analysis.status} 
+            isNativeProcessing={isNativeProcessing}
           />
-        </div>
-      )}
-    </div>
+        )}
+
+        {analysis.status === 'error' && analysis.error_message && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="h-5 w-5 text-red-500 flex-shrink-0 mt-0.5" />
+              <div>
+                <h4 className="font-medium text-red-800 mb-1">Erro no Processamento</h4>
+                <p className="text-sm text-red-700">{analysis.error_message}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {analysis.result && analysis.status === 'completed' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold">
+                {isAIAnalysis ? 'Resultado da Análise IA' : 'Processamento Concluído'}
+              </h3>
+              <ResultExporter analysis={analysis} />
+            </div>
+            <FormattedResult content={analysis.result} />
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 };
