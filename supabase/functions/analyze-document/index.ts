@@ -37,8 +37,8 @@ serve(async (req) => {
 
     // Roteamento baseado na ação
     if (action === 'process') {
-      // INGESTÃO: Chamar webhook do n8n para processamento de documentos
-      console.log('Processing ingestion for analysis:', analysis_id)
+      // INGESTÃO NATIVA: Usar novo sistema de processamento
+      console.log('Processing ingestion with native system for analysis:', analysis_id)
       
       const { file_path, file_name, instruction, project_name, isBatchUpload } = body
 
@@ -53,81 +53,76 @@ serve(async (req) => {
         )
       }
 
-      // Chamar webhook do n8n para ingestão - WEBHOOK ATUALIZADO
-      const ingestionWebhookUrl = 'https://betomanzoli.app.n8n.cloud/webhook/wnwlxeimcxne33gm1skn1twi4wp14cwb'
-      
-      const webhookPayload = {
-        analysis_id,
-        file_path,
-        file_name,
-        instruction: instruction || 'Indexar documento para busca semântica',
-        user_id,
-        project_name,
-        is_batch_upload: isBatchUpload || false,
-        action: 'INGESTION'
-      }
-
-      console.log('Calling n8n webhook for ingestion:', webhookPayload)
-
       try {
-        const webhookResponse = await fetch(ingestionWebhookUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(webhookPayload),
+        // Etapa 1: Extrair texto com OCR avançado
+        console.log('Step 1: Extracting text with advanced OCR...')
+        
+        const ocrResponse = await supabase.functions.invoke('native-document-processor', {
+          body: {
+            analysis_id,
+            file_path,
+            action: 'extract_text'
+          }
         })
 
-        if (!webhookResponse.ok) {
-          console.error('n8n webhook failed:', webhookResponse.status, webhookResponse.statusText)
-          
-          // Atualizar registro com erro detalhado
-          await supabase
-            .from('analysis_records')
-            .update({
-              status: 'error',
-              error_message: `Falha na comunicação com o sistema de processamento: ${webhookResponse.status} ${webhookResponse.statusText}`,
-              updated_at: new Date().toISOString(),
-              processing_timeout: null
-            })
-            .eq('id', analysis_id)
-
-          throw new Error(`Webhook de ingestão falhou: ${webhookResponse.status}`)
+        if (ocrResponse.error) {
+          console.error('OCR extraction failed:', ocrResponse.error)
+          throw new Error(`OCR failed: ${ocrResponse.error.message}`)
         }
 
-        console.log('n8n webhook called successfully for ingestion')
+        console.log('OCR completed successfully')
+
+        // Etapa 2: Chunking e geração de embeddings
+        console.log('Step 2: Chunking and embedding generation...')
+        
+        const embeddingResponse = await supabase.functions.invoke('native-document-processor', {
+          body: {
+            analysis_id,
+            action: 'chunk_and_embed'
+          }
+        })
+
+        if (embeddingResponse.error) {
+          console.error('Embedding generation failed:', embeddingResponse.error)
+          throw new Error(`Embedding failed: ${embeddingResponse.error.message}`)
+        }
+
+        console.log('Document processing completed successfully')
 
         return new Response(
           JSON.stringify({ 
             success: true, 
-            message: 'Ingestion started successfully',
-            analysis_id 
+            message: 'Native ingestion completed successfully',
+            analysis_id,
+            ocr_result: ocrResponse.data,
+            embedding_result: embeddingResponse.data
           }),
           { 
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
             status: 200 
           }
         )
-      } catch (fetchError) {
-        console.error('Error calling ingestion webhook:', fetchError)
+
+      } catch (error) {
+        console.error('Native ingestion process failed:', error)
         
-        // Atualizar registro com erro de conectividade
+        // Atualizar registro com erro
         await supabase
           .from('analysis_records')
           .update({
             status: 'error',
-            error_message: `Erro de conectividade com o sistema de processamento: ${fetchError.message}`,
+            error_message: `Falha no processamento nativo: ${error.message}`,
             updated_at: new Date().toISOString(),
             processing_timeout: null
           })
           .eq('id', analysis_id)
 
-        throw new Error('Falha na conectividade com o webhook de ingestão')
+        throw error
       }
 
     } else if (action === 'semantic-search') {
-      // ANÁLISE IA: Realizar busca semântica e análise
-      console.log('Processing semantic search for analysis:', analysis_id)
+      // ANÁLISE IA: Realizar busca semântica e análise com Master Agent v6.0
+      console.log('Processing semantic search with Master Agent v6.0 for analysis:', analysis_id)
       
       if (!query) {
         console.error('Missing query for semantic search')
@@ -197,79 +192,56 @@ serve(async (req) => {
           )
         }
 
-        // Chamar webhook do n8n para análise IA - WEBHOOK ATUALIZADO
-        const analysisWebhookUrl = 'https://betomanzoli.app.n8n.cloud/webhook/a2wf9rkk9gmwfmfv4jbhoak75b501igd'
+        // Chamar Master Agent v6.0 para análise
+        console.log('Calling Master Agent v6.0 for analysis...')
         
-        const analysisPayload = {
-          analysis_id,
-          query,
-          search_results: searchResults,
-          user_id,
-          context_documents: contextDocuments || [],
-          action: 'ANALYSIS'
-        }
-
-        console.log('Calling n8n webhook for AI analysis:', analysisPayload)
-
-        try {
-          const analysisResponse = await fetch(analysisWebhookUrl, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(analysisPayload),
-          })
-
-          if (!analysisResponse.ok) {
-            console.error('Analysis webhook failed:', analysisResponse.status, analysisResponse.statusText)
-            
-            // Atualizar registro com erro detalhado
-            await supabase
-              .from('analysis_records')
-              .update({
-                status: 'error',
-                error_message: `Falha na comunicação com o sistema de análise: ${analysisResponse.status} ${analysisResponse.statusText}`,
-                updated_at: new Date().toISOString(),
-                processing_timeout: null
-              })
-              .eq('id', analysis_id)
-
-            throw new Error(`Webhook de análise falhou: ${analysisResponse.status}`)
+        const analysisResponse = await supabase.functions.invoke('master-agent', {
+          body: {
+            analysis_id,
+            query,
+            search_results: searchResults,
+            user_id,
+            context_documents: contextDocuments || [],
+            action: 'analyze'
           }
+        })
 
-          console.log('Analysis webhook called successfully')
-
-          return new Response(
-            JSON.stringify({ 
-              success: true, 
-              message: 'Analysis started successfully',
-              analysis_id,
-              results: searchResults
-            }),
-            { 
-              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-              status: 200 
-            }
-          )
-        } catch (fetchError) {
-          console.error('Error calling analysis webhook:', fetchError)
-          
-          // Atualizar registro com erro de conectividade
-          await supabase
-            .from('analysis_records')
-            .update({
-              status: 'error',
-              error_message: `Erro de conectividade com o sistema de análise: ${fetchError.message}`,
-              updated_at: new Date().toISOString(),
-              processing_timeout: null
-            })
-            .eq('id', analysis_id)
-
-          throw new Error('Falha na conectividade com o webhook de análise')
+        if (analysisResponse.error) {
+          console.error('Master Agent analysis failed:', analysisResponse.error)
+          throw new Error(`Análise falhou: ${analysisResponse.error.message}`)
         }
+
+        console.log('Master Agent v6.0 analysis completed successfully')
+
+        return new Response(
+          JSON.stringify({ 
+            success: true, 
+            message: 'Analysis completed with Master Agent v6.0',
+            analysis_id,
+            results: searchResults,
+            analysis_result: analysisResponse.data
+          }),
+          { 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 200 
+          }
+        )
+
       } catch (error) {
         console.error('Error in semantic analysis process:', error)
-        throw error // Re-throw para ser capturado pelo catch principal
+        
+        // Atualizar registro com erro
+        await supabase
+          .from('analysis_records')
+          .update({
+            status: 'error',
+            error_message: `Falha na análise com Master Agent v6.0: ${error.message}`,
+            updated_at: new Date().toISOString(),
+            processing_timeout: null
+          })
+          .eq('id', analysis_id)
+
+        throw error
       }
 
     } else {
