@@ -15,8 +15,8 @@ export const DetailedProgressIndicator: React.FC<DetailedProgressIndicatorProps>
     if (isNativeProcessing) {
       return [
         { label: "Upload do arquivo", completed: true },
-        { label: "Extração de texto (OCR)", completed: status !== 'processing', current: status === 'processing' },
-        { label: "Divisão em chunks", completed: status === 'completed', current: status === 'text_extracted' },
+        { label: "Extração de texto (OCR)", completed: status === 'text_extracted', current: status === 'processing' },
+        { label: "Divisão em chunks", completed: false, current: status === 'text_extracted' },
         { label: "Geração de embeddings", completed: false, current: false },
         { label: "Indexação na base", completed: false, current: false }
       ];

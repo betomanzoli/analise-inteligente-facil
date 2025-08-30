@@ -8,11 +8,13 @@ import { ArrowLeft, Search, BarChart3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/contexts/AuthContext';
+import { useAnalysisRecord } from '@/hooks/useAnalysisHistory';
 
 const Library = () => {
   const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('library');
   const { user } = useAuth();
+  const { data: selectedAnalysis } = useAnalysisRecord(selectedDocumentId);
 
   const handleViewDocument = (documentId: string) => {
     setSelectedDocumentId(documentId);
@@ -49,7 +51,7 @@ const Library = () => {
       <Header />
       
       <main className="container mx-auto px-6 py-8">
-        {selectedDocumentId ? (
+        {selectedDocumentId && selectedAnalysis ? (
           <div className="space-y-6">
             <Button 
               variant="ghost" 
@@ -60,7 +62,10 @@ const Library = () => {
               <span>Voltar à Biblioteca</span>
             </Button>
             
-            <EnhancedAnalysisResult analysisId={selectedDocumentId} />
+            <EnhancedAnalysisResult 
+              analysis={selectedAnalysis} 
+              onRefresh={() => {}} 
+            />
           </div>
         ) : (
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
