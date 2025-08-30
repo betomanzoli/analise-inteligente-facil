@@ -54,7 +54,7 @@ export const useRAGAnalysis = () => {
       updateStep('Preparação da consulta', 'running');
       
       // Criar registro de análise
-      const analysisData = {
+      const recordData = {
         file_name: `Análise RAG: ${query.substring(0, 50)}${query.length > 50 ? '...' : ''}`,
         file_path: 'rag-analysis',
         file_size: 0,
@@ -65,9 +65,9 @@ export const useRAGAnalysis = () => {
         processing_timeout: new Date(Date.now() + 10 * 60 * 1000).toISOString(), // 10 minutes timeout
       };
 
-      const { data: recordData, error: recordError } = await supabase
+      const { data: insertedRecord, error: recordError } = await supabase
         .from('analysis_records')
-        .insert(analysisData)
+        .insert(recordData)
         .select()
         .single();
 
@@ -112,16 +112,16 @@ export const useRAGAnalysis = () => {
       // Step 4: Análise com Master Agent v7.0
       updateStep('Análise com Master Agent v7.0', 'running');
       
-      const { data: analysisData, error: analysisError } = await supabase.functions.invoke('master-agent', {
+      const { data: masterAgentResponse, error: analysisError } = await supabase.functions.invoke('master-agent', {
         body: {
           action: 'analyze',
-          analysis_id: recordData.id,
+          analysis_id: insertedRecord.id,
           query: query.trim(),
           search_results: searchResults
         }
       });
 
-      if (analysisError || !analysisData.success) {
+      if (analysisError || !masterAgentResponse.success) {
         throw new Error(`Falha na análise: ${analysisError?.message || 'Erro desconhecido'}`);
       }
 
@@ -131,11 +131,11 @@ export const useRAGAnalysis = () => {
       updateStep('Formatação dos resultados', 'running');
 
       const result: RAGAnalysisResult = {
-        result: analysisData.result,
-        confidence_level: analysisData.confidence_level || 'Médio',
-        sources_count: analysisData.sources_count || 0,
-        analysis_id: analysisData.analysis_id,
-        agent_version: analysisData.agent_version || '7.0'
+        result: masterAgentResponse.result,
+        confidence_level: masterAgentResponse.confidence_level || 'Médio',
+        sources_count: masterAgentResponse.sources_count || 0,
+        analysis_id: masterAgentResponse.analysis_id,
+        agent_version: masterAgentResponse.agent_version || '7.0'
       };
 
       updateStep('Formatação dos resultados', 'completed', 'Pronto');
