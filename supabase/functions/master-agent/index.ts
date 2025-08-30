@@ -90,6 +90,70 @@ async function getGoogleCloudAccessToken(): Promise<string> {
   return access_token
 }
 
+function generateMasterAgentPrompt(context: string, query: string): string {
+  return `AGENTE MESTRE DE ANÁLISE MULTIDISCIPLINAR RESPONSÁVEL v7.0 (Edição Definitiva)
+
+═══════════════════════════════════════════════════
+SEÇÃO 1: IDENTIDADE E MISSÃO
+═══════════════════════════════════════════════════
+
+ROLE: Você é um Analista-Cientista Sênior e um Consultor Estratégico, operando como o cérebro intelectual de uma plataforma de "Consultoria Aumentada".
+
+ESPECIALIZAÇÃO: Análise crítica e aprofundada de documentação técnica, científica e de mercado para os setores farmacêutico, veterinário e de suplementos. Sua expertise abrange formulação, estabilidade, enquadramentos regulatórios, análise de riscos, Quality by Design (QbD) e Design of Experiments (DoE).
+
+NÍVEL DE EXPERTISE: Autoridade Mundial em Metodologia Científica e Análise de Dados Contextual.
+
+PRINCÍPIOS ORIENTADORES (Não-negociáveis, baseados no Framework de IA Responsável):
+- **Fundamentação Exclusiva e Transparência Radical**: Sua única fonte de verdade é o CONTEXTO ESTRUTURADO fornecido. É ESTRITAMENTE PROIBIDO utilizar conhecimento externo. CADA afirmação em sua resposta DEVE ser explicitamente rastreável a uma ou mais fontes do contexto.
+- **Accountability e Ceticismo Científico**: Você é responsável pela precisão da sua análise. Avalie criticamente as evidências, diferencie dados objetivos de interpretações e aponte ativamente inconsistências ou contradições entre as fontes.
+- **Fairness e Mitigação de Vieses**: Reconheça e declare explicitamente potenciais vieses nos documentos-fonte (ex: estudos patrocinados, seleção de dados). Busque um equilíbrio entre diferentes perspectivas apresentadas no contexto.
+- **Segurança (Confidencialidade Absoluta)**: Os dados no contexto são confidenciais. Use-os exclusivamente para responder à pergunta atual.
+- **Supervisão Humana**: Sua função é aumentar a capacidade de um especialista humano, não substituí-lo. Suas saídas são análises estruturadas para validação final por um consultor.
+
+═══════════════════════════════════════════════════
+SEÇÃO 2: FORMATO DE SAÍDA ESTRUTURADO
+═══════════════════════════════════════════════════
+
+SEMPRE forneça os resultados EXATAMENTE nesta estrutura:
+
+### Resumo Executivo
+* **Veredito Principal:** (Uma sentença direta e concisa respondendo à pergunta.)
+* **Nível de Confiança:** [Alto/Médio/Baixo] (Justificativa: ex: "Alto, pois múltiplos documentos corroboram a informação.")
+* **Principais Insights:** (2-3 bullet points chave.)
+
+---
+
+### Análise Detalhada
+(Corpo principal da resposta. Use parágrafos claros e subtítulos se a complexidade exigir. APÓS CADA AFIRMAÇÃO SIGNIFICATIVA, INSIRA AS CITAÇÕES DAS FONTES.)
+
+---
+
+### Inconsistências e Pontos de Atenção
+(Seção dedicada a apontar contradições, vieses potenciais ou lacunas nos dados.)
+
+---
+
+### Limitações da Análise
+(Seção para declarar explicitamente o que NÃO PODE ser respondido.)
+
+---
+
+### Evidências e Fontes Principais
+(Liste aqui os trechos literais mais importantes do contexto que suportam suas conclusões.)
+
+═══════════════════════════════════════════════════
+DADOS DINÂMICOS
+═══════════════════════════════════════════════════
+
+**CONTEXTO ESTRUTURADO (Fragmentos recuperados):**
+${context}
+
+**PERGUNTA DO USUÁRIO:**
+${query}
+
+Processe esta solicitação seguindo rigorosamente o formato estruturado acima.`
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
@@ -103,7 +167,7 @@ serve(async (req) => {
 
     const { query, search_results, analysis_id, action } = await req.json()
     
-    console.log('Master Agent v6.0 request:', { query, results_count: search_results?.length, analysis_id, action })
+    console.log('Master Agent v7.0 request:', { query, results_count: search_results?.length, analysis_id, action })
 
     if (action !== 'analyze') {
       throw new Error('Only analyze action is supported')
@@ -113,7 +177,12 @@ serve(async (req) => {
     let context = ''
     if (search_results && search_results.length > 0) {
       context = search_results.map((result: any, index: number) => 
-        `[Documento ${index + 1}]: ${result.content}`
+        `[Documento ${index + 1}]: ${result.file_name || 'N/A'}
+Conteúdo: ${result.content}
+Metadados: ${JSON.stringify(result.metadata || {})}
+Similaridade: ${(result.similarity * 100).toFixed(1)}%
+
+---`
       ).join('\n\n')
     }
 
@@ -128,47 +197,21 @@ serve(async (req) => {
       throw new Error('Google Cloud Project ID not configured')
     }
 
+    // Generate structured prompt
+    const masterPrompt = generateMasterAgentPrompt(context, query)
+
     // Call Vertex AI Gemini for analysis
     const vertexUrl = `https://${region}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${region}/publishers/google/models/gemini-1.5-pro:generateContent`
     
-    const systemPrompt = `Você é o Master Agent v6.0, um assistente de análise documental avançado especializado em extrair insights precisos e relevantes de documentos corporativos.
-
-SUAS CAPACIDADES:
-- Análise semântica profunda de conteúdo
-- Extração de insights estratégicos
-- Síntese de informações complexas
-- Formatação clara e estruturada
-- Respostas em português brasileiro
-
-DIRETRIZES DE ANÁLISE:
-1. PRECISÃO: Base suas respostas exclusivamente no conteúdo fornecido
-2. ESTRUTURA: Organize informações de forma hierárquica e clara
-3. RELEVÂNCIA: Foque nos pontos mais importantes para a consulta
-4. CONTEXTUALIZAÇÃO: Conecte informações de diferentes partes do documento
-5. ACIONABILIDADE: Forneça insights que possam orientar decisões
-
-FORMATO DE RESPOSTA:
-- Use títulos e subtítulos claros
-- Estruture em seções lógicas
-- Destaque pontos-chave com bullet points
-- Inclua citações relevantes quando apropriado
-- Termine com um resumo executivo quando aplicável
-
-Agora analise o contexto fornecido e responda à consulta de forma completa e precisa.`
-
-    const userMessage = context 
-      ? `CONSULTA: ${query}\n\nCONTEXTO DOS DOCUMENTOS:\n${context}`
-      : `CONSULTA: ${query}\n\nNenhum documento relevante foi encontrado na base de conhecimento. Forneça uma resposta geral baseada no conhecimento sobre o tópico.`
-
     const requestBody = {
       contents: [{
         role: 'user',
         parts: [{
-          text: `${systemPrompt}\n\n${userMessage}`
+          text: masterPrompt
         }]
       }],
       generationConfig: {
-        temperature: 0.7,
+        temperature: 0.2,
         topK: 40,
         topP: 0.95,
         maxOutputTokens: 8192
@@ -193,7 +236,7 @@ Agora analise o contexto fornecido e responda à consulta de forma completa e pr
       ]
     }
 
-    console.log('Calling Vertex AI Gemini...')
+    console.log('Calling Vertex AI Gemini Pro with Master Agent v7.0...')
 
     const vertexResponse = await fetch(vertexUrl, {
       method: 'POST',
@@ -218,7 +261,15 @@ Agora analise o contexto fornecido e responda à consulta de forma completa e pr
 
     const analysisResult = data.candidates[0].content.parts[0].text
 
-    console.log('Analysis completed, result length:', analysisResult.length)
+    // Parse confidence level from result
+    let confidenceLevel = 'Médio'
+    if (analysisResult.includes('Nível de Confiança:** Alto')) {
+      confidenceLevel = 'Alto'
+    } else if (analysisResult.includes('Nível de Confiança:** Baixo')) {
+      confidenceLevel = 'Baixo'
+    }
+
+    console.log('Analysis completed, result length:', analysisResult.length, 'confidence:', confidenceLevel)
 
     // Update analysis record with result
     await supabase
@@ -236,14 +287,16 @@ Agora analise o contexto fornecido e responda à consulta de forma completa e pr
         success: true,
         result: analysisResult,
         analysis_id,
+        confidence_level: confidenceLevel,
+        sources_count: search_results?.length || 0,
         model: 'gemini-1.5-pro',
-        agent_version: '6.0'
+        agent_version: '7.0'
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
 
   } catch (error) {
-    console.error('Master Agent error:', error)
+    console.error('Master Agent v7.0 error:', error)
     
     // Update analysis record with error if analysis_id is available
     const body = await req.json().catch(() => ({}))
