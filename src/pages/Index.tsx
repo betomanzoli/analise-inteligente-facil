@@ -74,6 +74,17 @@ const Index = () => {
             </div>
           ) : (
             <div className="max-w-4xl mx-auto">
+              <div className="mb-6 text-center">
+                <h1 className="text-2xl font-bold text-card-title mb-2">
+                  Bem-vindo ao Sistema de Análise Documental
+                </h1>
+                <p className="text-subtle">
+                  {analyses.length === 0 
+                    ? "Comece adicionando seus primeiros documentos para análise inteligente."
+                    : "Selecione uma análise no histórico ou processe novos documentos."
+                  }
+                </p>
+              </div>
               <UnifiedAnalysisInterface onAnalysisStart={handleAnalysisStart} />
             </div>
           )}
