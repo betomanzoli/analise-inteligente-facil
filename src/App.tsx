@@ -7,7 +7,6 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import Index from "./pages/Index";
 import Library from "./pages/Library";
-import Tools from "./pages/Tools";
 import Ferramentas from "./pages/Ferramentas";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
@@ -25,7 +24,6 @@ function App() {
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/library" element={<Library />} />
-              <Route path="/tools" element={<Tools />} />
               <Route path="/ferramentas" element={<Ferramentas />} />
               <Route path="/auth" element={<Auth />} />
               <Route path="*" element={<NotFound />} />
