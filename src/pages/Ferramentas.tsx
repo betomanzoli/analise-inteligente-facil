@@ -26,6 +26,7 @@ import TimelineEstimator from '@/components/calculators/timeline/TimelineEstimat
 import DoEPlanner from '@/components/calculators/doe/DoEPlanner';
 import ProcessRobustness from '@/components/calculators/process/ProcessRobustness';
 import RSMOptimizer from '@/components/calculators/rsm/RSMOptimizer';
+import ROICalculator from '@/components/calculators/roi/ROICalculator';
 
 interface Calculator {
   id: string;
@@ -118,6 +119,16 @@ const calculators: Calculator[] = [
     status: 'available',
     features: ['Modelo Preditivo', 'Otimização Multi-objetivo', 'Validação Estatística'],
     difficulty: 'Avançado'
+  },
+  {
+    id: 'roi',
+    title: 'ROI Farmacêutico',
+    description: 'Calcule retorno sobre investimento e ponto de equilíbrio para projetos farmacêuticos.',
+    icon: TrendingUp,
+    category: 'basic',
+    status: 'available',
+    features: ['Projeção Fluxo de Caixa', 'Break-Even Point', 'Análise de Risco'],
+    difficulty: 'Intermediário'
   }
 ];
 
@@ -142,6 +153,8 @@ const Ferramentas: React.FC = () => {
         return <ProcessRobustness />;
       case 'rsm':
         return <RSMOptimizer />;
+      case 'roi':
+        return <ROICalculator />;
       default:
         return null;
     }

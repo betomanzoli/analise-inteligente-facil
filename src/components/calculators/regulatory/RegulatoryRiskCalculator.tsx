@@ -1,55 +1,154 @@
-import React, { useState } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Shield, AlertTriangle, BarChart3 } from 'lucide-react';
+import React, { useReducer, useState } from 'react';
+import { toast } from 'sonner';
+import RegulatoryForm from './RegulatoryForm';
+import RegulatoryResults from './RegulatoryResults';
+import { RegulatoryFormData, RegulatoryResult, RegulatoryFormSchema } from './types';
+import { calculateRegulatoryRisk } from './calculations';
+
+interface RegulatoryState {
+  formData: Partial<RegulatoryFormData>;
+  result: RegulatoryResult | null;
+  errors: Record<string, string>;
+  isValid: boolean;
+}
+
+type RegulatoryAction = 
+  | { type: 'UPDATE_FIELD'; field: keyof RegulatoryFormData; value: any }
+  | { type: 'SET_ERRORS'; errors: Record<string, string> }
+  | { type: 'SET_RESULT'; result: RegulatoryResult }
+  | { type: 'RESET_FORM' };
+
+const initialState: RegulatoryState = {
+  formData: {
+    targetMarkets: ['brazil'],
+    mitigationFactors: [],
+    hasRegulatoryExpertise: false,
+    timelineImportance: 'medium'
+  },
+  result: null,
+  errors: {},
+  isValid: false
+};
+
+function regulatoryReducer(state: RegulatoryState, action: RegulatoryAction): RegulatoryState {
+  switch (action.type) {
+    case 'UPDATE_FIELD':
+      const newFormData = { ...state.formData, [action.field]: action.value };
+      return {
+        ...state,
+        formData: newFormData,
+        errors: { ...state.errors, [action.field]: '' }
+      };
+    case 'SET_ERRORS':
+      return { ...state, errors: action.errors };
+    case 'SET_RESULT':
+      return { ...state, result: action.result, errors: {} };
+    case 'RESET_FORM':
+      return initialState;
+    default:
+      return state;
+  }
+}
 
 const RegulatoryRiskCalculator: React.FC = () => {
+  const [state, dispatch] = useReducer(regulatoryReducer, initialState);
   const [isLoading, setIsLoading] = useState(false);
+
+  const handleFieldChange = (field: keyof RegulatoryFormData, value: any) => {
+    dispatch({ type: 'UPDATE_FIELD', field, value });
+  };
+
+  const validateForm = (data: Partial<RegulatoryFormData>): Record<string, string> => {
+    const errors: Record<string, string> = {};
+    
+    try {
+      RegulatoryFormSchema.parse(data);
+    } catch (error: any) {
+      if (error.errors) {
+        error.errors.forEach((err: any) => {
+          const field = err.path[0];
+          errors[field] = getErrorMessage(field, err.code);
+        });
+      }
+    }
+    
+    return errors;
+  };
+
+  const getErrorMessage = (field: string, code: string): string => {
+    const messages: Record<string, Record<string, string>> = {
+      productCategory: {
+        invalid_enum_value: 'Selecione uma categoria de produto válida',
+        required_error: 'Categoria do produto é obrigatória'
+      },
+      noveltyDegree: {
+        invalid_enum_value: 'Selecione um grau de novidade válido',
+        required_error: 'Grau de novidade é obrigatório'
+      },
+      targetMarkets: {
+        too_small: 'Selecione pelo menos um mercado alvo',
+        required_error: 'Mercados alvo são obrigatórios'
+      },
+      clinicalEvidence: {
+        invalid_enum_value: 'Selecione um tipo de evidência clínica válido',
+        required_error: 'Evidência clínica é obrigatória'
+      }
+    };
+    
+    return messages[field]?.[code] || `Campo ${field} inválido`;
+  };
+
+  const handleCalculate = async () => {
+    const errors = validateForm(state.formData);
+    
+    if (Object.keys(errors).length > 0) {
+      dispatch({ type: 'SET_ERRORS', errors });
+      toast.error('Por favor, corrija os erros no formulário');
+      return;
+    }
+
+    setIsLoading(true);
+    
+    try {
+      // Simulate API call delay
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      const result = calculateRegulatoryRisk(state.formData as RegulatoryFormData);
+      dispatch({ type: 'SET_RESULT', result });
+      
+      toast.success('Análise de risco regulatório concluída!');
+    } catch (error) {
+      toast.error('Erro ao calcular risco regulatório. Tente novamente.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleWhatsAppShare = () => {
+    if (!state.result) return;
+    
+    const message = `Olá! Utilizei o Avaliador de Risco Regulatório da Essenza e meu projeto obteve risco ${state.result.riskLevel} (${state.result.riskScore}%). Os principais fatores críticos foram: ${state.result.criticalFactors.slice(0, 2).join(', ')}. Gostaria de discutir estratégias de mitigação e planejamento regulatório.`;
+    
+    const whatsappUrl = `https://wa.me/5511999999999?text=${encodeURIComponent(message)}`;
+    window.open(whatsappUrl, '_blank');
+  };
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
-      <Card className="border-warning/20 bg-gradient-to-r from-warning/5 to-destructive/5">
-        <CardHeader>
-          <div className="flex items-center gap-3">
-            <Shield className="h-8 w-8 text-warning" />
-            <div>
-              <CardTitle className="text-2xl text-foreground">Avaliador de Risco Regulatório</CardTitle>
-              <CardDescription>
-                Identifique e quantifique riscos regulatórios para ANVISA, FDA e EMA
-              </CardDescription>
-            </div>
-          </div>
-        </CardHeader>
-      </Card>
-
-      <div className="bg-surface-elevated/50 border border-border rounded-lg p-4">
-        <div className="flex items-start gap-3">
-          <AlertTriangle className="h-5 w-5 text-warning flex-shrink-0 mt-0.5" />
-          <div>
-            <p className="text-sm text-muted-foreground">
-              <strong className="text-foreground">Em Desenvolvimento:</strong> Esta calculadora está sendo desenvolvida 
-              com expertise regulatória para avaliar riscos em múltiplas jurisdições (Brasil, EUA, Europa).
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <Card>
-        <CardContent className="py-12 text-center">
-          <BarChart3 className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-foreground mb-2">
-            Calculadora em Desenvolvimento
-          </h3>
-          <p className="text-muted-foreground mb-6 max-w-md mx-auto">
-            Nossa equipe está criando algoritmos que avaliarão: complexidade regulatória, 
-            timeline de aprovação, documentação necessária e estratégias de mitigação de riscos.
-          </p>
-          <Button disabled>
-            <Shield className="h-4 w-4 mr-2" />
-            Em Breve
-          </Button>
-        </CardContent>
-      </Card>
+      {!state.result ? (
+        <RegulatoryForm
+          formData={state.formData as RegulatoryFormData}
+          errors={state.errors}
+          isLoading={isLoading}
+          onChange={handleFieldChange}
+          onSubmit={handleCalculate}
+        />
+      ) : (
+        <RegulatoryResults
+          result={state.result}
+          onWhatsAppShare={handleWhatsAppShare}
+        />
+      )}
     </div>
   );
 };
