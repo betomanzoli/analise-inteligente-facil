@@ -13,7 +13,7 @@ import {
   TrendingUp,
   MessageCircle,
   FileText,
-  LightBulb
+  Lightbulb
 } from 'lucide-react';
 import { RegulatoryResult } from './types';
 
