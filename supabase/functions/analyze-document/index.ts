@@ -66,8 +66,32 @@ serve(async (req) => {
         })
 
         if (ocrResponse.error) {
-          console.error('OCR extraction failed:', ocrResponse.error)
+          console.error('OCR extraction failed (HTTP error):', ocrResponse.error)
           throw new Error(`OCR failed: ${ocrResponse.error.message}`)
+        }
+
+        const ocrData = ocrResponse.data
+        if (!ocrData?.success) {
+          console.error('OCR extraction returned unsuccessful result:', ocrData)
+          await supabase
+            .from('analysis_records')
+            .update({
+              status: 'error',
+              error_message: ocrData?.error ? `Falha na extração de texto: ${ocrData.error}` : 'Falha na extração de texto',
+              updated_at: new Date().toISOString(),
+              processing_timeout: null
+            })
+            .eq('id', analysis_id)
+
+          return new Response(
+            JSON.stringify({
+              success: false,
+              message: 'OCR extraction failed',
+              analysis_id,
+              ocr_result: ocrData
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+          )
         }
 
         console.log('OCR completed successfully')

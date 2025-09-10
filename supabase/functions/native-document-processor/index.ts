@@ -1,6 +1,7 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { encode as encodeBase64 } from "https://deno.land/std@0.168.0/encoding/base64.ts"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -37,27 +38,26 @@ serve(async (req) => {
       const fileSizeInMB = arrayBuffer.byteLength / (1024 * 1024)
       
       if (fileSizeInMB > 10) {
-        throw new Error(`File too large for OCR processing. Maximum size: 10MB, current: ${fileSizeInMB.toFixed(1)}MB`)
+        const message = `File too large for OCR processing. Maximum size: 10MB, current: ${fileSizeInMB.toFixed(1)}MB`
+        console.error(message)
+        await supabase
+          .from('analysis_records')
+          .update({
+            status: 'error',
+            error_message: message,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', analysis_id)
+        return new Response(
+          JSON.stringify({ success: false, error: message, analysis_id }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+        )
       }
 
       console.log(`Processing file of size: ${fileSizeInMB.toFixed(2)}MB`)
 
-      // Convert PDF to base64 for Google Vision API (chunk-based approach for large files)
-      function arrayBufferToBase64(buffer: ArrayBuffer): string {
-        const uint8Array = new Uint8Array(buffer)
-        const chunkSize = 1024 * 1024 // 1MB chunks
-        let base64String = ''
-        
-        for (let i = 0; i < uint8Array.length; i += chunkSize) {
-          const chunk = uint8Array.slice(i, i + chunkSize)
-          const chunkString = String.fromCharCode.apply(null, Array.from(chunk))
-          base64String += btoa(chunkString)
-        }
-        
-        return base64String
-      }
-
-      const base64Content = arrayBufferToBase64(arrayBuffer)
+      // Convert file to base64 safely using Deno std encoding
+      const base64Content = encodeBase64(new Uint8Array(arrayBuffer))
 
       // Call Google Vision API for OCR
       const visionApiKey = Deno.env.get('GOOGLE_VISION_API_KEY')
@@ -84,13 +84,42 @@ serve(async (req) => {
       })
 
       if (!visionResponse.ok) {
-        throw new Error(`Vision API error: ${visionResponse.status}`)
+        const errorBody = await visionResponse.text()
+        let details: unknown = undefined
+        try { details = JSON.parse(errorBody) } catch (_) {}
+        const message = `Vision API error: ${visionResponse.status}`
+        console.error(message, details)
+        await supabase
+          .from('analysis_records')
+          .update({
+            status: 'error',
+            error_message: `${message}${details ? ` - ${JSON.stringify(details)}` : ''}`,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', analysis_id)
+        return new Response(
+          JSON.stringify({ success: false, error: message, status: visionResponse.status, details, analysis_id }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+        )
       }
 
       const visionData = await visionResponse.json()
       
       if (!visionData.responses?.[0]?.fullTextAnnotation?.text) {
-        throw new Error('No text found in document')
+        const message = 'No text found in document'
+        console.error(message)
+        await supabase
+          .from('analysis_records')
+          .update({
+            status: 'error',
+            error_message: message,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', analysis_id)
+        return new Response(
+          JSON.stringify({ success: false, error: message, analysis_id }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+        )
       }
 
       const extractedText = visionData.responses[0].fullTextAnnotation.text
