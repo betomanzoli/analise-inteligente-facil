@@ -32,9 +32,32 @@ serve(async (req) => {
         throw new Error(`Failed to download file: ${downloadError.message}`)
       }
 
-      // Convert PDF to base64 for Google Vision API
+      // Check file size (limit to 10MB for OCR processing)
       const arrayBuffer = await fileData.arrayBuffer()
-      const base64Content = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)))
+      const fileSizeInMB = arrayBuffer.byteLength / (1024 * 1024)
+      
+      if (fileSizeInMB > 10) {
+        throw new Error(`File too large for OCR processing. Maximum size: 10MB, current: ${fileSizeInMB.toFixed(1)}MB`)
+      }
+
+      console.log(`Processing file of size: ${fileSizeInMB.toFixed(2)}MB`)
+
+      // Convert PDF to base64 for Google Vision API (chunk-based approach for large files)
+      function arrayBufferToBase64(buffer: ArrayBuffer): string {
+        const uint8Array = new Uint8Array(buffer)
+        const chunkSize = 1024 * 1024 // 1MB chunks
+        let base64String = ''
+        
+        for (let i = 0; i < uint8Array.length; i += chunkSize) {
+          const chunk = uint8Array.slice(i, i + chunkSize)
+          const chunkString = String.fromCharCode.apply(null, Array.from(chunk))
+          base64String += btoa(chunkString)
+        }
+        
+        return base64String
+      }
+
+      const base64Content = arrayBufferToBase64(arrayBuffer)
 
       // Call Google Vision API for OCR
       const visionApiKey = Deno.env.get('GOOGLE_VISION_API_KEY')
