@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Sparkles, History, Library, User, LogOut } from 'lucide-react';
+import { Sparkles, History, Library, Calculator, User, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
@@ -70,6 +70,14 @@ export const Header: React.FC<HeaderProps> = ({
                 >
                   Biblioteca
                 </Link>
+                <Link
+                  to="/tools"
+                  className={`text-sm font-medium transition-colors hover:text-primary ${
+                    location.pathname === '/tools' ? 'text-primary' : 'text-muted-foreground'
+                  }`}
+                >
+                  Ferramentas
+                </Link>
               </nav>
             )}
           </div>
@@ -93,6 +101,9 @@ export const Header: React.FC<HeaderProps> = ({
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild>
                       <Link to="/library">Biblioteca</Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link to="/tools">Ferramentas</Link>
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
