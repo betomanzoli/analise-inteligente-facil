@@ -18,7 +18,7 @@ export interface ViabilityScores {
 
 export interface ViabilityResult {
   percentage: number;
-  level: 'Baixa' | 'Média' | 'Alta' | 'Muito Alta';
+  level: 'Baixa' | 'Média' | 'Média-Alta' | 'Alta' | 'Muito Alta';
   color: string;
   icon: string;
   scores: ViabilityScores;

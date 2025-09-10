@@ -18,6 +18,7 @@ import {
   AlertTriangle
 } from 'lucide-react';
 
+import ViabilityCalculator from '@/components/calculators/viability/ViabilityCalculator';
 import CostCalculator from '@/components/calculators/cost/CostCalculator';
 import RegulatoryRiskCalculator from '@/components/calculators/regulatory/RegulatoryRiskCalculator';
 import QbDComplexityEvaluator from '@/components/calculators/qbd/QbDComplexityEvaluator';
@@ -126,7 +127,7 @@ const Ferramentas: React.FC = () => {
   const renderCalculator = () => {
     switch (activeCalculator) {
       case 'viability':
-        return <div>Calculadora de Viabilidade em desenvolvimento</div>;
+        return <ViabilityCalculator />;
       case 'cost':
         return <CostCalculator />;
       case 'regulatory-risk':

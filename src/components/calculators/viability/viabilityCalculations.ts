@@ -154,7 +154,7 @@ export function calculateViability(formData: ViabilityFormData): ViabilityResult
 
   return {
     percentage,
-    level: viabilityLevel.level as 'Baixa' | 'Média' | 'Alta' | 'Muito Alta',
+    level: viabilityLevel.level as 'Baixa' | 'Média' | 'Média-Alta' | 'Alta' | 'Muito Alta',
     color: viabilityLevel.color,
     icon: viabilityLevel.icon,
     scores,

@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Header } from '@/components/Header';
-import { ViabilityCalculator } from '@/components/calculators/viability/ViabilityCalculator';
+import ViabilityCalculator from '@/components/calculators/viability/ViabilityCalculator';
 import { useState } from 'react';
 
 export default function Tools() {
