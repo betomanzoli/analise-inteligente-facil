@@ -71,9 +71,9 @@ export const Header: React.FC<HeaderProps> = ({
                   Biblioteca
                 </Link>
                 <Link
-                  to="/tools"
+                  to="/ferramentas"
                   className={`text-sm font-medium transition-colors hover:text-primary ${
-                    location.pathname === '/tools' ? 'text-primary' : 'text-muted-foreground'
+                    location.pathname === '/ferramentas' ? 'text-primary' : 'text-muted-foreground'
                   }`}
                 >
                   Ferramentas
@@ -103,7 +103,7 @@ export const Header: React.FC<HeaderProps> = ({
                       <Link to="/library">Biblioteca</Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild>
-                      <Link to="/tools">Ferramentas</Link>
+                      <Link to="/ferramentas">Ferramentas</Link>
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
