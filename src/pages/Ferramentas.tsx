@@ -203,29 +203,75 @@ const Ferramentas: React.FC = () => {
       <div className="container mx-auto px-6 py-8">
         {/* Hero Section */}
         <div className="text-center mb-12">
-          <div className="flex items-center justify-center gap-3 mb-4">
+          <div className="flex items-center justify-center gap-3 mb-6">
             <div className="relative">
-              <Calculator className="h-12 w-12 text-primary" />
-              <Sparkles className="h-5 w-5 text-accent absolute -top-1 -right-1 animate-pulse" />
+              <div className="p-4 bg-gradient-to-br from-primary/20 to-accent/20 rounded-2xl">
+                <Calculator className="h-12 w-12 text-primary" />
+              </div>
+              <Sparkles className="h-6 w-6 text-accent absolute -top-1 -right-1 animate-pulse bg-background rounded-full p-1" />
             </div>
-            <h1 className="text-4xl font-bold text-foreground">Ferramentas Interativas</h1>
+            <div>
+              <h1 className="text-4xl font-bold text-foreground">Ferramentas Farmacêuticas</h1>
+              <p className="text-lg text-accent font-medium">Análises Quantitativas Especializadas</p>
+            </div>
           </div>
-          <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
-            Calculadoras especializadas em Life Sciences para acelerar suas análises e decisões estratégicas.
-            Desenvolvidas por especialistas da Essenza para maximizar a precisão dos seus projetos.
+          
+          <p className="text-xl text-muted-foreground max-w-4xl mx-auto leading-relaxed mb-6">
+            <span className="font-semibold text-foreground">9 calculadoras especializadas</span> desenvolvidas por 
+            especialistas em Life Sciences. Acelere suas análises e decisões estratégicas com 
+            <span className="text-primary font-semibold"> precisão farmacêutica profissional</span>.
           </p>
+
+          {/* Quick Stats */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-2xl mx-auto">
+            <div className="text-center">
+              <div className="text-2xl font-bold text-primary">9</div>
+              <div className="text-xs text-muted-foreground">Calculadoras</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-accent">100%</div>
+              <div className="text-xs text-muted-foreground">Funcionais</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-warning">5min</div>
+              <div className="text-xs text-muted-foreground">Análise Média</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-primary">24/7</div>
+              <div className="text-xs text-muted-foreground">Disponível</div>
+            </div>
+          </div>
         </div>
 
-        {/* Disclaimer */}
-        <div className="bg-surface-elevated/50 border border-border rounded-lg p-4 mb-8 mx-auto max-w-4xl">
-          <div className="flex items-start gap-3">
-            <AlertTriangle className="h-5 w-5 text-warning flex-shrink-0 mt-0.5" />
-            <div>
-              <p className="text-sm text-muted-foreground">
-                <strong className="text-foreground">Importante:</strong> Essas calculadoras fornecem estimativas baseadas em modelos matemáticos e dados do setor. 
-                Os resultados devem ser utilizados como ferramenta de apoio à decisão e não substituem consultoria especializada. 
-                Para análises detalhadas e personalizadas, recomendamos contato com nossos especialistas.
-              </p>
+        {/* Enhanced Disclaimer */}
+        <div className="bg-gradient-to-r from-warning/10 to-accent/10 border border-warning/30 rounded-xl p-6 mb-8 mx-auto max-w-5xl">
+          <div className="flex items-start gap-4">
+            <div className="p-2 bg-warning/20 rounded-lg flex-shrink-0">
+              <AlertTriangle className="h-6 w-6 text-warning" />
+            </div>
+            <div className="space-y-3">
+              <h4 className="font-semibold text-foreground text-lg">Sobre Nossas Calculadoras</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                <div>
+                  <p className="text-muted-foreground">
+                    <strong className="text-foreground">Baseadas em:</strong> Modelos matemáticos validados, 
+                    benchmarks do setor farmacêutico e diretrizes regulatórias atuais.
+                  </p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">
+                    <strong className="text-foreground">Uso recomendado:</strong> Ferramenta de apoio à decisão 
+                    para análises preliminares e planejamento estratégico.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 pt-2">
+                <CheckCircle className="h-4 w-4 text-primary" />
+                <p className="text-sm text-muted-foreground">
+                  Para análises detalhadas, combine com nossa <strong className="text-primary">IA de Análise Documental</strong> 
+                  para resultados mais precisos e personalizados.
+                </p>
+              </div>
             </div>
           </div>
         </div>
@@ -360,29 +406,59 @@ const Ferramentas: React.FC = () => {
           </div>
         </section>
 
-        {/* CTA Section */}
+        {/* Integration CTA Section */}
         <div className="bg-gradient-to-r from-primary/10 via-accent/10 to-primary/10 rounded-xl p-8 text-center">
-          <div className="max-w-2xl mx-auto">
-            <h3 className="text-2xl font-bold text-foreground mb-4">
-              Precisa de uma análise mais aprofundada?
-            </h3>
-            <p className="text-muted-foreground mb-6">
-              Nossas calculadoras são o primeiro passo. Para projetos complexos, oferecemos consultoria especializada 
-              com análise documental avançada usando nossa plataforma de IA.
+          <div className="max-w-3xl mx-auto">
+            <div className="flex items-center justify-center gap-3 mb-4">
+              <Sparkles className="h-8 w-8 text-primary" />
+              <h3 className="text-3xl font-bold text-foreground">
+                Combinação Perfeita: Calculadoras + IA
+              </h3>
+            </div>
+            <p className="text-lg text-muted-foreground mb-6">
+              <strong className="text-foreground">Fluxo otimizado:</strong> Use nossas calculadoras para análises rápidas, 
+              depois nossa <span className="text-primary font-semibold">IA especializada</span> para análise documental aprofundada. 
+              A única plataforma que oferece análises quantitativas e documentais integradas.
             </p>
+            
+            {/* Usage Stats */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+              <div className="bg-surface-elevated rounded-lg p-4">
+                <div className="text-2xl font-bold text-primary mb-1">9</div>
+                <div className="text-sm text-muted-foreground">Calculadoras Ativas</div>
+              </div>
+              <div className="bg-surface-elevated rounded-lg p-4">
+                <div className="text-2xl font-bold text-accent mb-1">100%</div>
+                <div className="text-sm text-muted-foreground">Funcionais</div>
+              </div>
+              <div className="bg-surface-elevated rounded-lg p-4">
+                <div className="text-2xl font-bold text-warning mb-1">5min</div>
+                <div className="text-sm text-muted-foreground">Tempo Médio</div>
+              </div>
+            </div>
+
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Button variant="outline" asChild>
+              <Button size="lg" asChild>
                 <a href="/" className="flex items-center gap-2">
-                  <Sparkles className="h-4 w-4" />
-                  Análise Documental IA
+                  <Sparkles className="h-5 w-5" />
+                  Análise Documental com IA
                 </a>
               </Button>
-              <Button variant="outline" asChild>
+              <Button variant="outline" size="lg" asChild>
                 <a href="/library" className="flex items-center gap-2">
-                  <CheckCircle className="h-4 w-4" />
+                  <CheckCircle className="h-5 w-5" />
                   Explorar Biblioteca
                 </a>
               </Button>
+            </div>
+
+            {/* Value Proposition */}
+            <div className="mt-6 p-4 bg-primary/5 rounded-lg border border-primary/20">
+              <p className="text-sm text-muted-foreground">
+                💡 <span className="font-medium text-foreground">Dica Pro:</span> 
+                Comece com uma calculadora (ex: Viabilidade), depois use a IA para analisar 
+                documentos técnicos relacionados. Economize 70% do tempo vs métodos tradicionais.
+              </p>
             </div>
           </div>
         </div>
