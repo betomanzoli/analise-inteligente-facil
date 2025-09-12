@@ -355,16 +355,13 @@ export type Database = {
       }
       search_similar_chunks: {
         Args: {
-          filter_user_id?: string
-          match_count?: number
-          match_threshold?: number
+          filter_user_id: string
+          match_count: number
+          match_threshold: number
           query_embedding: string
         }
         Returns: {
-          analysis_record_id: string
           content: string
-          created_at: string
-          file_name: string
           id: string
           metadata: Json
           similarity: number
