@@ -9,6 +9,7 @@ import Index from "./pages/Index";
 import Library from "./pages/Library";
 import Ferramentas from "./pages/Ferramentas";
 import Auth from "./pages/Auth";
+import Admin from "./pages/Admin";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -26,6 +27,7 @@ function App() {
               <Route path="/library" element={<Library />} />
               <Route path="/ferramentas" element={<Ferramentas />} />
               <Route path="/auth" element={<Auth />} />
+              <Route path="/admin" element={<Admin />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>

@@ -14,6 +14,48 @@ export type Database = {
   }
   public: {
     Tables: {
+      analysis_prompts: {
+        Row: {
+          category: string
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          prompt_text: string
+          status: string
+          updated_at: string
+          usage_count: number | null
+          user_id: string
+          variables: Json | null
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          prompt_text: string
+          status?: string
+          updated_at?: string
+          usage_count?: number | null
+          user_id: string
+          variables?: Json | null
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          prompt_text?: string
+          status?: string
+          updated_at?: string
+          usage_count?: number | null
+          user_id?: string
+          variables?: Json | null
+        }
+        Relationships: []
+      }
       analysis_records: {
         Row: {
           batch_id: string | null
@@ -220,6 +262,54 @@ export type Database = {
         }
         Relationships: []
       }
+      notebooks: {
+        Row: {
+          category: string
+          connectivity_status: string | null
+          created_at: string
+          description: string | null
+          id: string
+          last_tested_at: string | null
+          name: string
+          priority: number
+          status: string
+          tags: string[] | null
+          updated_at: string
+          url: string
+          user_id: string
+        }
+        Insert: {
+          category: string
+          connectivity_status?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          last_tested_at?: string | null
+          name: string
+          priority?: number
+          status?: string
+          tags?: string[] | null
+          updated_at?: string
+          url: string
+          user_id: string
+        }
+        Update: {
+          category?: string
+          connectivity_status?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          last_tested_at?: string | null
+          name?: string
+          priority?: number
+          status?: string
+          tags?: string[] | null
+          updated_at?: string
+          url?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
@@ -289,6 +379,57 @@ export type Database = {
           id?: string
           name?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      templates: {
+        Row: {
+          category: string
+          created_at: string
+          description: string | null
+          file_path: string
+          file_type: string
+          id: string
+          name: string
+          pricing: number | null
+          status: string
+          template_structure: Json | null
+          updated_at: string
+          user_id: string
+          variables: Json | null
+          version: string | null
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          description?: string | null
+          file_path: string
+          file_type: string
+          id?: string
+          name: string
+          pricing?: number | null
+          status?: string
+          template_structure?: Json | null
+          updated_at?: string
+          user_id: string
+          variables?: Json | null
+          version?: string | null
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          description?: string | null
+          file_path?: string
+          file_type?: string
+          id?: string
+          name?: string
+          pricing?: number | null
+          status?: string
+          template_structure?: Json | null
+          updated_at?: string
+          user_id?: string
+          variables?: Json | null
+          version?: string | null
         }
         Relationships: []
       }
